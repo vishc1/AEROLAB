@@ -116,6 +116,10 @@ let cameraFrozen = false;
 let lastMaskUpdate = 0;
 let selectedColor = { r: 239, g: 107, b: 74 };
 let maskUsable = false;
+let validMaskFrames = 0;
+let lastValidMaskAt = 0;
+let objectTracked = false;
+let trackedCoverage = 0;
 const maskConfidence = new Float32Array(sim.size);
 let captureStart = 0;
 let captureSamples: { drag: number; lift: number }[] = [];
@@ -215,6 +219,7 @@ document.querySelectorAll<HTMLButtonElement>('[data-preset]').forEach(button => 
 document.querySelectorAll<HTMLButtonElement>('.mode-tab').forEach(button => button.addEventListener('click', () => {
   mode = button.dataset.mode as typeof mode;
   if (mode === 'camera') { sim.reset('clear'); void startCamera(); }
+  else if (cameraStream) stopCamera();
   document.querySelectorAll('.mode-tab').forEach(b => b.classList.toggle('active', b === button));
   document.querySelector<HTMLElement>('.brush-controls')!.hidden = mode !== 'draw';
   document.querySelector<HTMLElement>('.camera-controls')!.hidden = mode !== 'camera';
@@ -242,7 +247,13 @@ const tolerance = document.querySelector<HTMLInputElement>('#tolerance')!;
 const maskStatus = document.querySelector<HTMLDivElement>('#maskStatus')!;
 
 function setFeedPrompt(message: string) { document.querySelector('#feedPrompt')!.textContent = message; }
-function resetColorTracking() { maskConfidence.fill(0); maskUsable = false; }
+function resetColorTracking() { maskConfidence.fill(0); maskUsable = false; validMaskFrames = 0; lastValidMaskAt = 0; }
+function clearCameraObject(message = 'No matching object—tunnel cleared') {
+  if (objectTracked) { sim.reset('clear'); smokeCtx.clearRect(0, 0, smokeCanvas.width, smokeCanvas.height); }
+  objectTracked = false; trackedCoverage = 0; validMaskFrames = 0; maskUsable = false;
+  maskCtx.clearRect(0, 0, maskPreview.width, maskPreview.height);
+  if (cameraStream) { document.querySelector('#cameraState')!.textContent = 'SEARCHING'; setFeedPrompt(message); }
+}
 function setSelectedColor(r: number, g: number, b: number) {
   selectedColor = { r: Math.round(r), g: Math.round(g), b: Math.round(b) };
   const hex = `#${[selectedColor.r, selectedColor.g, selectedColor.b].map(v => v.toString(16).padStart(2, '0')).join('')}`;
@@ -301,6 +312,7 @@ async function startCamera() {
 }
 function stopCamera() {
   cameraStream?.getTracks().forEach(track => track.stop()); cameraStream = null; video.srcObject = null; cameraBtn.textContent = 'Start camera'; freezeBtn.disabled = true;
+  clearCameraObject();
   document.querySelector('#cameraState')!.textContent = 'OFFLINE'; setFeedPrompt('Camera stopped—select Camera to restart');
   maskStatus.dataset.state = 'idle'; maskStatus.querySelector('span')!.textContent = 'Waiting for camera';
 }
@@ -384,11 +396,12 @@ function updateMaskQuality(mask: Uint8Array) {
   const coverageValue = count / ((sim.width - 32) * (sim.height - 4));
   document.querySelector('#coverage')!.textContent = `${Math.round(coverageValue * 100)}%`;
   let state = 'good', message = 'Outline ready';
-  if (coverageValue < .004) { state = 'bad'; message = 'No object found—raise color range'; }
+  if (coverageValue < .008) { state = 'bad'; message = 'No stable object found'; }
   else if (coverageValue > .52) { state = 'bad'; message = 'Too much selected—lower color range'; }
   else if (edge / Math.max(1, count) > .18) { state = 'warn'; message = 'Selection touches edge—reframe it'; }
-  else if (coverageValue < .018) { state = 'warn'; message = 'Very small object—move closer'; }
+  else if (coverageValue < .02) { state = 'warn'; message = 'Small object—move closer for accuracy'; }
   maskUsable = state !== 'bad'; maskStatus.dataset.state = state; maskStatus.querySelector('span')!.textContent = message;
+  return { usable: maskUsable, coverage: coverageValue };
 }
 
 function updateCameraMask(now: number) {
@@ -411,11 +424,28 @@ function updateCameraMask(now: number) {
     smooth[x + y * sim.width] = n >= 4 ? 1 : 0;
   }
   const clean = fillSilhouetteHoles(keepLargestComponent(smooth));
-  updateMaskQuality(clean);
-  sim.setMask(fitMaskToTunnel(clean));
+  const quality = updateMaskQuality(clean);
+  const sizeConsistent = !objectTracked || quality.coverage >= trackedCoverage * .4;
+  const validCandidate = quality.usable && sizeConsistent;
+  if (validCandidate) {
+    validMaskFrames++;
+    if (validMaskFrames >= 3) {
+      sim.setMask(fitMaskToTunnel(clean));
+      trackedCoverage = objectTracked ? trackedCoverage * .8 + quality.coverage * .2 : quality.coverage;
+      objectTracked = true; lastValidMaskAt = now;
+      document.querySelector('#cameraState')!.textContent = 'TRACKING';
+      setFeedPrompt('Object isolated—freeze when ready');
+    }
+  } else {
+    validMaskFrames = 0;
+    if (!sizeConsistent) { maskStatus.dataset.state = 'bad'; maskStatus.querySelector('span')!.textContent = 'Object lost—ignoring smaller color noise'; }
+    if (objectTracked && now - lastValidMaskAt > 450) clearCameraObject();
+    else if (!objectTracked) document.querySelector('#cameraState')!.textContent = 'SEARCHING';
+  }
+  const previewMask = validCandidate ? clean : new Uint8Array(sim.size);
   const overlay = maskCtx.createImageData(240, 160);
   for (let py = 0; py < 160; py++) for (let px = 0; px < 240; px++) {
-    const gx = Math.min(sim.width - 1, Math.floor(px / 240 * sim.width)), gy = Math.min(sim.height - 1, Math.floor(py / 160 * sim.height)); const on = clean[gx + gy * sim.width]; const p = (px + py * 240) * 4;
+    const gx = Math.min(sim.width - 1, Math.floor(px / 240 * sim.width)), gy = Math.min(sim.height - 1, Math.floor(py / 160 * sim.height)); const on = previewMask[gx + gy * sim.width]; const p = (px + py * 240) * 4;
     if (on) { overlay.data[p] = 239; overlay.data[p + 1] = 255; overlay.data[p + 2] = 87; overlay.data[p + 3] = 178; }
   }
   maskCtx.putImageData(overlay, 0, 0);

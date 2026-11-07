@@ -20,6 +20,7 @@ npm run dev
 - Hue, saturation, and chromaticity matching that keeps glossy objects selected while rejecting nearby colors such as skin beside red plastic
 - Live tolerance tuning, largest-object cleanup, hole filling, temporal mask smoothing, and outline-quality diagnostics
 - Camera silhouettes normalized to a safe 25% tunnel height with protected inlet/outlet padding
+- Three-frame presence confirmation and automatic obstacle/wake clearing when the object leaves the camera
 - Frozen-shape five-second test runs
 - Height-normalized local leaderboard and design feedback
 
