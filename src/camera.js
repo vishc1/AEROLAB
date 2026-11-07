@@ -52,6 +52,9 @@ export class CameraTracker {
     this.frozen = false;
     this.usable = false;
     this.selected = { r: 239, g: 107, b: 74 };
+    this.colorProfile = null;
+    this.selectedPoint = null;
+    this.trackedSourceCenter = null;
     this.lastUpdate = 0;
     this.confidence = null;
     this.validFrames = 0;
@@ -78,6 +81,7 @@ export class CameraTracker {
     this.confidence = null;
     this.usable = false;
     this.validFrames = 0;
+    this.trackedSourceCenter = null;
     if (this.objectTracked) this.lastValidAt = performance.now();
   }
 
@@ -93,6 +97,7 @@ export class CameraTracker {
     this.validFrames = 0;
     this.lastValidAt = 0;
     this.confidence = null;
+    this.trackedSourceCenter = null;
     this.usable = false;
     this.clearPreview();
     this.$('cam-coverage').textContent = '0%';
@@ -108,6 +113,7 @@ export class CameraTracker {
 
   setColor(r, g, b) {
     this.selected = { r: Math.round(r), g: Math.round(g), b: Math.round(b) };
+    this.colorProfile = null;
     const hex = `#${[this.selected.r, this.selected.g, this.selected.b]
       .map((v) => v.toString(16).padStart(2, '0'))
       .join('')}`;
@@ -166,8 +172,32 @@ export class CameraTracker {
     for (let p = 0; p < data.length; p += 4) {
       pixels.push({ r: data[p], g: data[p + 1], b: data[p + 2], ...rgbToHsv(data[p], data[p + 1], data[p + 2]) });
     }
-    const colorful = pixels.filter((px) => px.s > 0.18 && px.v > 0.06);
+    const centerRadius = 1;
+    const centerPixels = [];
+    for (let cy = Math.max(0, Math.floor(y - top) - centerRadius); cy <= Math.min(height - 1, Math.floor(y - top) + centerRadius); cy += 1) {
+      for (let cx = Math.max(0, Math.floor(x - left) - centerRadius); cx <= Math.min(width - 1, Math.floor(x - left) + centerRadius); cx += 1) {
+        centerPixels.push(pixels[cx + cy * width]);
+      }
+    }
+    const circularHue = (items) => {
+      let sin = 0;
+      let cos = 0;
+      let weight = 0;
+      for (const px of items) {
+        const w = Math.max(0.01, px.s * px.s);
+        sin += Math.sin((px.h * Math.PI) / 180) * w;
+        cos += Math.cos((px.h * Math.PI) / 180) * w;
+        weight += w;
+      }
+      return weight ? (((Math.atan2(sin, cos) * 180) / Math.PI) + 360) % 360 : 0;
+    };
+    const seedHue = circularHue(centerPixels.filter((px) => px.s > 0.12));
+    const hueDistance = (a, b) => Math.min(Math.abs(a - b), 360 - Math.abs(a - b));
+    // Learn from pixels that agree with the exact point clicked. This avoids
+    // averaging the object with skin or backdrop pixels around a narrow ruler.
+    const colorful = pixels.filter((px) => px.s > 0.16 && px.v > 0.035 && hueDistance(px.h, seedHue) < 30);
     let rgb;
+    let profile = null;
     if (colorful.length > pixels.length * 0.2) {
       let sin = 0;
       let cos = 0;
@@ -183,7 +213,17 @@ export class CameraTracker {
         weight += w;
       }
       const hue = (((Math.atan2(sin, cos) * 180) / Math.PI) + 360) % 360;
-      rgb = hsvToRgb(hue, sat / weight, val / weight);
+      const meanSat = sat / weight;
+      const meanVal = val / weight;
+      rgb = hsvToRgb(hue, meanSat, meanVal);
+      const hueDeviations = colorful.map((px) => hueDistance(px.h, hue)).sort((a, b) => a - b);
+      const saturations = colorful.map((px) => px.s).sort((a, b) => a - b);
+      const percentile = (values, amount) => values[Math.min(values.length - 1, Math.floor(values.length * amount))];
+      profile = {
+        h: hue,
+        hueRadius: Math.max(7, Math.min(18, percentile(hueDeviations, 0.9) + 4)),
+        saturationFloor: Math.max(0.12, percentile(saturations, 0.12) * 0.52),
+      };
     } else {
       const med = (key) => {
         const a = pixels.map((px) => px[key]).sort((m, n) => m - n);
@@ -192,6 +232,9 @@ export class CameraTracker {
       rgb = [med('r'), med('g'), med('b')];
     }
     this.setColor(...rgb);
+    this.colorProfile = profile;
+    this.selectedPoint = { x: x / VW, y: y / VH };
+    this.trackedSourceCenter = null;
     const hsv = rgbToHsv(...rgb);
     this.pickingColor = false;
     this.feed.classList.remove('is-picking');
@@ -465,7 +508,25 @@ export class CameraTracker {
   }
 
   matches(r, g, b, range, sample) {
-    return matchesColor(r, g, b, this.selected, range, sample);
+    if (!this.colorProfile) return matchesColor(r, g, b, this.selected, range, sample);
+    const pixel = rgbToHsv(r, g, b);
+    const rawHueGap = Math.abs(pixel.h - this.colorProfile.h);
+    const hueGap = Math.min(rawHueGap, 360 - rawHueGap);
+    // Brightness changes dramatically across glossy objects, so intentionally
+    // ignore value and compare hue plus normalized chroma instead.
+    const hueLimit = Math.min(30, this.colorProfile.hueRadius + range * 0.27);
+    const pixelTotal = Math.max(1, r + g + b);
+    const selectedTotal = Math.max(1, this.selected.r + this.selected.g + this.selected.b);
+    const chromaGap = Math.hypot(
+      r / pixelTotal - this.selected.r / selectedTotal,
+      g / pixelTotal - this.selected.g / selectedTotal,
+      b / pixelTotal - this.selected.b / selectedTotal,
+    );
+    const chromaLimit = 0.055 + range * 0.0018;
+    return hueGap <= hueLimit
+      && pixel.s >= this.colorProfile.saturationFloor
+      && chromaGap <= chromaLimit
+      && pixel.v > 0.025;
   }
 
   /** Per-frame. Returns true if the obstacle mask was replaced. */
@@ -527,7 +588,10 @@ export class CameraTracker {
         smooth[x + y * W] = n >= 4 ? 1 : 0;
       }
     }
-    const clean = this.fillHoles(this.largest(smooth, W, H), W, H);
+    const selectedComponent = object
+      ? this.componentNearestSelection(smooth, W, H)
+      : { mask: this.largest(smooth, W, H), center: null };
+    const clean = this.fillHoles(selectedComponent.mask, W, H);
     const quality = this.updateQuality(clean, W, H);
     const sizeConsistent = !this.objectTracked || quality.coverage >= this.trackedCoverage * 0.4;
     const valid = quality.usable && sizeConsistent;
@@ -541,6 +605,14 @@ export class CameraTracker {
         this.trackedCoverage = this.objectTracked
           ? this.trackedCoverage * 0.8 + quality.coverage * 0.2
           : quality.coverage;
+        if (selectedComponent.center) {
+          this.trackedSourceCenter = this.trackedSourceCenter
+            ? {
+                x: this.trackedSourceCenter.x * 0.58 + selectedComponent.center.x * 0.42,
+                y: this.trackedSourceCenter.y * 0.58 + selectedComponent.center.y * 0.42,
+              }
+            : selectedComponent.center;
+        }
         this.objectTracked = true;
         this.lastValidAt = now;
         this.usable = true;
@@ -608,6 +680,59 @@ export class CameraTracker {
     if ((sizes[winner] || 0) < 12) return out;
     for (let i = 0; i < size; i += 1) if (labels[i] === winner) out[i] = 1;
     return out;
+  }
+
+  /** Keep the color blob that the user actually clicked, then follow it. */
+  componentNearestSelection(mask, W, H) {
+    const size = W * H;
+    const labels = new Int32Array(size);
+    const queue = new Int32Array(size);
+    const components = [];
+    let label = 0;
+    for (let start = 0; start < size; start += 1) {
+      if (!mask[start] || labels[start]) continue;
+      label += 1;
+      let head = 0;
+      let tail = 0;
+      let sumX = 0;
+      let sumY = 0;
+      queue[tail++] = start;
+      labels[start] = label;
+      while (head < tail) {
+        const i = queue[head++];
+        const x = i % W;
+        const y = Math.floor(i / W);
+        sumX += x;
+        sumY += y;
+        if (x > 0 && mask[i - 1] && !labels[i - 1]) { labels[i - 1] = label; queue[tail++] = i - 1; }
+        if (x < W - 1 && mask[i + 1] && !labels[i + 1]) { labels[i + 1] = label; queue[tail++] = i + 1; }
+        if (i >= W && mask[i - W] && !labels[i - W]) { labels[i - W] = label; queue[tail++] = i - W; }
+        if (i + W < size && mask[i + W] && !labels[i + W]) { labels[i + W] = label; queue[tail++] = i + W; }
+      }
+      if (tail >= 10) components.push({ label, count: tail, x: sumX / tail, y: sumY / tail });
+    }
+
+    const anchor = this.trackedSourceCenter || (this.selectedPoint
+      ? { x: this.selectedPoint.x * W, y: this.selectedPoint.y * H }
+      : { x: W * 0.5, y: H * 0.5 });
+    const diagonal = Math.hypot(W, H);
+    let winner = null;
+    let winnerScore = -Infinity;
+    for (const component of components) {
+      const distance = Math.hypot(component.x - anchor.x, component.y - anchor.y) / diagonal;
+      // A nearby thin ruler should beat a much larger hand or wall of similar hue.
+      const score = Math.log1p(component.count) * 0.42 - distance * (this.objectTracked ? 8 : 13);
+      if (score > winnerScore) {
+        winner = component;
+        winnerScore = score;
+      }
+    }
+    const out = new Uint8Array(size);
+    if (!winner) return { mask: out, center: null };
+    const jump = Math.hypot(winner.x - anchor.x, winner.y - anchor.y) / diagonal;
+    if (jump > (this.objectTracked ? 0.22 : 0.32)) return { mask: out, center: null };
+    for (let i = 0; i < size; i += 1) if (labels[i] === winner.label) out[i] = 1;
+    return { mask: out, center: { x: winner.x, y: winner.y } };
   }
 
   fillHoles(mask, W, H) {
@@ -687,10 +812,11 @@ export class CameraTracker {
     this.$('cam-coverage').textContent = `${Math.round(coverage * 100)}%`;
     let state = 'good';
     let message = 'Outline ready';
-    if (coverage < 0.008) { state = 'bad'; message = 'No stable object found'; }
+    if (coverage < 0.0025) { state = 'bad'; message = 'No stable object found'; }
     else if (coverage > 0.52) { state = 'bad'; message = 'Too much selected — lower tolerance'; }
     else if (edge / Math.max(1, count) > 0.18) { state = 'warn'; message = 'Selection touches edge — reframe it'; }
-    else if (coverage < 0.018) { state = 'warn'; message = 'Very small object — move closer'; }
+    else if (coverage < 0.008) { state = 'warn'; message = 'Thin object locked — freeze when steady'; }
+    else if (coverage < 0.018) { state = 'warn'; message = 'Small object locked — move closer for more detail'; }
     this.usable = state !== 'bad';
     this.setStatus(state, message);
     return { usable: this.usable, coverage };

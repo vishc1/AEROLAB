@@ -8,6 +8,7 @@
     "test:smoke": "node scripts/check.mjs",
     "test:model": "node scripts/test-model.mjs",
     "test:camera-ai": "node scripts/test-camera-ai.mjs",
+    "test:camera-color": "node scripts/test-camera-color.mjs",
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview --host 0.0.0.0"
