@@ -92,11 +92,14 @@ function setDim(dim) {
 function setInput(input) {
   if (input === store.state.input) {
     if (input === 'camera' && !camera.active) camera.startCamera();
-    return;
+    if (input === 'model') return initModelImporter();
+    return Promise.resolve();
   }
+  const previousInput = store.state.input;
   cancelBenchmark();
   store.patch({ input });
   ui?.syncStatic();
+  if (previousInput === 'model') modelImporter?.deactivate();
   if (input === 'camera') {
     mask.clear();
     mask.upload();
@@ -110,8 +113,9 @@ function setInput(input) {
       mask.upload();
       clearFlow();
     }
-    initModelImporter();
+    return initModelImporter();
   }
+  return Promise.resolve();
 }
 
 function initModelImporter() {

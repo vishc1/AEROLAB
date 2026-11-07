@@ -23,7 +23,13 @@ try {
   await page.goto('http://localhost:5190', { waitUntil: 'networkidle0' });
   await page.click('[data-input="camera"]');
   await page.waitForFunction(() => window.__AEROLAB__.camera.active, { timeout: 10000 });
-  await page.select('#cam-detect', 'hand');
+  await page.click('#cam-mode-color');
+  await page.click('#cam-pick-object');
+  const pickerReady = await page.evaluate(() => ({
+    highlighted: document.getElementById('cam-feed').classList.contains('is-picking'),
+    prompt: document.getElementById('cam-prompt').textContent,
+  }));
+  await page.click('#cam-mode-hand');
   await page.waitForFunction(
     () => Boolean(window.__AEROLAB__.camera.handLandmarker),
     { timeout: 30000 },
@@ -46,8 +52,9 @@ try {
       privacyNoteVisible: !document.getElementById('cam-ai-note').hidden,
     };
   });
+  result.pickerReady = pickerReady;
 
-  if (!result.cameraActive || !result.mediaPipeReady || !result.feedHasPixels || !result.privacyNoteVisible) {
+  if (!result.cameraActive || !result.mediaPipeReady || !result.feedHasPixels || !result.privacyNoteVisible || !result.pickerReady.highlighted) {
     throw new Error(`Camera AI did not initialize correctly: ${JSON.stringify(result)}`);
   }
   if (errors.length) throw new Error(`Browser errors: ${errors.join(' | ')}`);

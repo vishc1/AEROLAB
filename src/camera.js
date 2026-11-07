@@ -62,6 +62,7 @@ export class CameraTracker {
     this.handLandmarker = null;
     this.handLoading = null;
     this.handCanvas = document.createElement('canvas');
+    this.pickingColor = false;
     this.bindEvents();
   }
 
@@ -192,7 +193,10 @@ export class CameraTracker {
     }
     this.setColor(...rgb);
     const hsv = rgbToHsv(...rgb);
-    this.setPrompt(`${colorName(hsv.h, hsv.s).toUpperCase()} sampled — lime overlay is the isolated object`);
+    this.pickingColor = false;
+    this.feed.classList.remove('is-picking');
+    this.$('cam-pick-object').textContent = 'Pick object from video';
+    this.setPrompt(`${colorName(hsv.h, hsv.s).toUpperCase()} sampled — hold still while the lime outline locks on`);
   }
 
   async startCamera() {
@@ -218,8 +222,8 @@ export class CameraTracker {
       this.$('cam-freeze').disabled = false;
       this.frozen = false;
       this.$('cam-state').textContent = 'SEARCHING';
-      this.setPrompt('Hold an object in view, then click it (or press Sample center)');
-      this.setStatus('warn', 'Pick the object colour');
+      this.setPrompt('Click directly on the ruler or object in the video to select its exact color');
+      this.setStatus('warn', 'Object not selected yet · click it in the video');
       if (this.$('cam-detect').value === 'hand') this.initHandTracking();
     } catch (error) {
       if (request !== this.cameraRequest) return;
@@ -239,6 +243,8 @@ export class CameraTracker {
     this.video.srcObject = null;
     this.starting = false;
     this.frozen = false;
+    this.pickingColor = false;
+    this.feed.classList.remove('is-picking');
     this.$('cam-start').textContent = 'Start camera';
     this.$('cam-freeze').disabled = true;
     this.clearTrackedObject('Camera stopped');
@@ -285,6 +291,18 @@ export class CameraTracker {
   bindEvents() {
     const $ = this.$;
     $('cam-start').addEventListener('click', () => this.toggleCamera());
+    $('cam-mode-color').addEventListener('click', () => {
+      $('cam-detect').value = 'object';
+      this.resetTracking();
+      this.syncDetectionMode();
+      this.enterPickMode();
+    });
+    $('cam-mode-hand').addEventListener('click', () => {
+      $('cam-detect').value = 'hand';
+      this.resetTracking();
+      this.syncDetectionMode();
+    });
+    $('cam-pick-object').addEventListener('click', () => this.enterPickMode());
     $('cam-freeze').addEventListener('click', () => {
       if (!this.frozen && !this.usable) {
         this.setPrompt('Tune the colour until the outline says ready');
@@ -321,17 +339,34 @@ export class CameraTracker {
   syncDetectionMode() {
     const mode = this.$('cam-detect').value;
     const handMode = mode === 'hand';
+    if (handMode) this.pickingColor = false;
     this.$('cam-color-tools').hidden = handMode;
     this.$('cam-tolerance-row').hidden = handMode;
     this.$('cam-center').disabled = handMode;
     this.$('cam-ai-note').hidden = !handMode;
+    this.$('cam-mode-color').classList.toggle('is-active', !handMode);
+    this.$('cam-mode-hand').classList.toggle('is-active', handMode);
+    this.$('cam-pick-object').hidden = handMode;
+    this.feed.classList.toggle('is-picking', this.pickingColor && !handMode);
     if (handMode) {
       this.setPrompt('Loading Google MediaPipe hand tracking…');
       this.initHandTracking();
     } else {
       this.setPrompt(mode === 'object' ? 'Pick the object’s strongest colour' : 'Pick the clean backdrop colour');
-      this.setStatus('warn', 'Pick a color in the live view');
+      this.setStatus('warn', 'Click directly on the object in the live video');
     }
+  }
+
+  enterPickMode() {
+    if (!this.stream) {
+      this.setPrompt('Start the camera first, then click the object in the video');
+      return;
+    }
+    this.pickingColor = true;
+    this.feed.classList.add('is-picking');
+    this.$('cam-pick-object').textContent = 'Now click the object ↑';
+    this.setPrompt('Click directly on the red ruler, phone, or clay object in the video');
+    this.setStatus('warn', 'Waiting for an object color sample');
   }
 
   async initHandTracking() {

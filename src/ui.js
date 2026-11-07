@@ -373,6 +373,10 @@ export function createUI(store, actions) {
   document.querySelectorAll('[data-input]').forEach((b) => {
     b.addEventListener('click', () => actions.setInput(b.dataset.input));
   });
+  $('quick-upload').addEventListener('click', async () => {
+    await actions.setInput('model');
+    $('model-file').click();
+  });
   document.querySelectorAll('[data-build]').forEach((b) => {
     b.addEventListener('click', () => actions.setBuild(b.dataset.build));
   });

@@ -77,6 +77,9 @@
                 <span>BLENDER → AR</span>
                 <span>60 FPS TARGET</span>
               </div>
+              <button id="quick-upload" class="hero-upload" type="button">
+                <span>Upload an object or image</span><b>.GLB / PNG / JPG ↗</b>
+              </button>
             </div>
           </section>
 
@@ -205,10 +208,15 @@
                       <canvas id="cam-mask" width="320" height="240"></canvas>
                     </div>
                     <div class="cam-controls">
-                      <p id="cam-prompt" class="cam-prompt">Start the camera to calibrate</p>
+                      <p id="cam-prompt" class="cam-prompt">Start the camera, then click directly on the object in the video.</p>
+                      <div class="camera-mode-cards" role="group" aria-label="Camera tracking mode">
+                        <button id="cam-mode-color" class="is-active" type="button"><b>COLOR OBJECT</b><span>Ruler, phone, clay</span></button>
+                        <button id="cam-mode-hand" type="button"><b>HAND AI</b><span>Google MediaPipe</span></button>
+                      </div>
                       <div class="cam-row">
                         <button id="cam-start" class="shape-chip" type="button">Start camera</button>
-                        <button id="cam-center" class="shape-chip" type="button">Sample center</button>
+                        <button id="cam-pick-object" class="cam-pick-button" type="button">Pick object from video</button>
+                        <button id="cam-center" class="shape-chip" type="button">Auto-pick center</button>
                         <button id="cam-freeze" class="shape-chip" type="button" disabled>Freeze shape</button>
                       </div>
                       <div class="cam-row">
@@ -243,33 +251,51 @@
                   </div>
                   <div class="model-body">
                     <div class="model-stage">
-                      <model-viewer
-                        id="model-viewer"
-                        camera-controls
-                        touch-action="pan-y"
-                        shadow-intensity="1"
-                        exposure="1.05"
-                        environment-image="neutral"
-                        ar
-                        ar-modes="webxr scene-viewer quick-look"
-                        alt="Uploaded Blender model preview"
-                      >
-                        <div class="model-empty" slot="poster">
-                          <span>3D</span>
-                          <strong>Your design appears here</strong>
+                      <div class="model-view-switch" role="group" aria-label="Model preview mode">
+                        <button class="is-active" id="show-model-preview" type="button">3D model</button>
+                        <button id="show-hand-ar" type="button" disabled>Hand AR</button>
+                      </div>
+                      <div id="model-preview" class="model-preview">
+                        <img id="model-image-preview" alt="Uploaded image preview" hidden />
+                        <model-viewer
+                          id="model-viewer"
+                          camera-controls
+                          touch-action="pan-y"
+                          shadow-intensity="1"
+                          exposure="1.05"
+                          environment-image="neutral"
+                          ar
+                          ar-modes="webxr scene-viewer quick-look"
+                          alt="Uploaded Blender model preview"
+                        >
+                          <div class="model-empty" slot="poster">
+                            <span>3D</span>
+                            <strong>Your design appears here</strong>
+                          </div>
+                        </model-viewer>
+                        <div class="model-orbit-hint">Drag to orbit · pinch to zoom</div>
+                      </div>
+                      <div id="handar-view" class="handar-view" hidden>
+                        <video id="handar-video" autoplay muted playsinline></video>
+                        <canvas id="handar-canvas" aria-label="Uploaded 3D object anchored to your hand"></canvas>
+                        <div class="handar-reticle" aria-hidden="true"><i></i><span>SHOW YOUR PALM</span></div>
+                        <div class="handar-toolbar">
+                          <label for="handar-size">Object size</label>
+                          <input id="handar-size" class="range" type="range" min="55" max="180" value="100" />
+                          <button id="handar-flip" class="shape-chip" type="button">Flip</button>
                         </div>
-                      </model-viewer>
-                      <div class="model-orbit-hint">Drag to orbit · pinch to zoom</div>
+                        <div id="handar-status" class="handar-status">Starting camera…</div>
+                      </div>
                     </div>
                     <div class="model-controls">
                       <div id="model-dropzone" class="model-dropzone">
-                        <input id="model-file" type="file" accept=".glb,.gltf,model/gltf-binary,model/gltf+json" hidden />
+                        <input id="model-file" type="file" accept=".glb,.gltf,.png,.jpg,.jpeg,.webp,.svg,model/gltf-binary,model/gltf+json,image/*" hidden />
                         <span class="model-drop-icon">↥</span>
                         <div>
-                          <strong>Drop a Blender export</strong>
-                          <p>Export once as glTF 2.0 <code>.glb</code> — geometry and textures stay in one file.</p>
+                          <strong>Upload a 3D object or image</strong>
+                          <p>Use Blender <code>.glb</code> for true 3D, or PNG/JPG/WebP/SVG as a palm decal.</p>
                         </div>
-                        <button id="model-browse" class="shape-chip" type="button" disabled>Choose .glb</button>
+                        <button id="model-browse" class="shape-chip" type="button" disabled>Upload object</button>
                       </div>
                       <div class="model-fileline">
                         <div><strong id="model-name">No model loaded</strong><span id="model-meta">UP TO 75 MB</span></div>
@@ -282,9 +308,14 @@
                         <button class="shape-chip" data-model-axis="side" type="button">Side</button>
                         <button class="shape-chip" data-model-axis="top" type="button">Top</button>
                       </div>
-                      <button id="model-ar" class="model-ar-button" type="button">
-                        <span>View in your space</span><b>AR ↗</b>
-                      </button>
+                      <div class="model-ar-grid">
+                        <button id="model-hand-ar" class="model-hand-button" type="button" disabled>
+                          <span>Put it on my hand</span><b>AI HAND AR</b>
+                        </button>
+                        <button id="model-ar" class="model-ar-button" type="button">
+                          <span>View in your space</span><b>ROOM AR ↗</b>
+                        </button>
+                      </div>
                       <div id="model-status" class="model-status" data-state="idle"><i></i><span>Waiting for a Blender glTF export</span></div>
                     </div>
                   </div>
@@ -586,10 +617,10 @@
             <h3>Hand AI and Blender-to-AR</h3>
             <p>
               Google MediaPipe Hand Landmarker turns 21 hand joints into a temporally
-              stabilized solid boundary without uploading camera frames. Blender
-              <code>.glb</code> files are projected from three wind directions into the
-              same solver, while the original 3D model stays interactive and can launch
-              into WebXR, Scene Viewer or Quick Look AR on a compatible phone.
+              stabilized solid boundary without uploading camera frames. Uploaded
+              <code>.glb</code> models or PNG/JPG images can also be anchored directly
+              to the moving palm. Blender models are projected from three wind directions
+              into the same solver and can launch into WebXR, Scene Viewer or Quick Look AR.
             </p>
           </section>
           <section>

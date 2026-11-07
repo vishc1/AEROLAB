@@ -4,7 +4,13 @@ const modelPath = process.argv[2] || '/tmp/aerolab-test.glb';
 const browser = await puppeteer.launch({
   executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
   headless: 'new',
-  args: ['--no-sandbox', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
+  args: [
+    '--no-sandbox',
+    '--enable-unsafe-swiftshader',
+    '--ignore-gpu-blocklist',
+    '--use-fake-device-for-media-stream',
+    '--use-fake-ui-for-media-stream',
+  ],
 });
 
 try {
@@ -48,8 +54,41 @@ try {
   if (!Number.isFinite(result.drag) || !Number.isFinite(result.lift)) {
     throw new Error(`Model projection destabilized telemetry: ${JSON.stringify(result)}`);
   }
+
+  await page.click('#model-hand-ar');
+  await page.waitForFunction(
+    () => Boolean(
+      window.__AEROLAB__.modelImporter?.handArStream
+      && window.__AEROLAB__.modelImporter?.handLandmarker
+      && window.__AEROLAB__.modelImporter?.handArRunning
+    ),
+    { timeout: 30000 },
+  );
+  const handAr = await page.evaluate(() => {
+    const importer = window.__AEROLAB__.modelImporter;
+    const landmarks = Array.from({ length: 21 }, () => ({ x: 0.5, y: 0.5, z: 0 }));
+    landmarks[0] = { x: 0.5, y: 0.74, z: 0 };
+    landmarks[5] = { x: 0.37, y: 0.53, z: 0 };
+    landmarks[9] = { x: 0.5, y: 0.44, z: -0.02 };
+    landmarks[13] = { x: 0.59, y: 0.49, z: 0 };
+    landmarks[17] = { x: 0.67, y: 0.56, z: 0.01 };
+    const anchored = importer.updateHandAnchor(landmarks);
+    const value = {
+      cameraActive: Boolean(importer.handArStream),
+      mediaPipeReady: Boolean(importer.handLandmarker),
+      anchored,
+      visible: importer.handArAnchor.visible,
+      scale: importer.handArAnchor.scale.x,
+      canvas: [document.getElementById('handar-canvas').width, document.getElementById('handar-canvas').height],
+    };
+    importer.showModelPreview();
+    return value;
+  });
+  if (!handAr.cameraActive || !handAr.mediaPipeReady || !handAr.anchored || !handAr.visible || handAr.scale <= 0) {
+    throw new Error(`Hand AR did not anchor the uploaded model: ${JSON.stringify(handAr)}`);
+  }
   if (errors.length) throw new Error(`Browser errors: ${errors.join(' | ')}`);
-  console.log(JSON.stringify(result, null, 2));
+  console.log(JSON.stringify({ ...result, handAr }, null, 2));
   await page.screenshot({ path: 'scripts/model-upload.png', fullPage: true });
 } finally {
   await browser.close();

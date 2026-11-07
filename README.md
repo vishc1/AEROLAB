@@ -39,6 +39,8 @@ npm run preview
 - Vertical tracking: moving the real object up or down moves its tunnel silhouette too
 - Blender glTF (`.glb`) upload with mesh statistics and front, side and top wind projections
 - Interactive 3D model inspection plus phone AR placement through `<model-viewer>`
+- PNG, JPG, WebP and SVG uploads become textured palm decals
+- Hand AR anchors the uploaded model or image to MediaPipe palm position, rotation and scale
 - Frozen-shape five-second tests, local leaderboard and design feedback
 
 ## Controls
