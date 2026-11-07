@@ -10,6 +10,8 @@ import { createUI } from './ui.js';
 import { Sim3D } from './sim3d.js';
 import { CameraTracker } from './camera.js';
 import { createLeaderboard } from './leaderboard.js';
+import { createMissions } from './missions.js';
+import { createImpactPanel } from './impact.js';
 
 const store = createStore();
 
@@ -35,6 +37,8 @@ let camera = null;
 let leaderboard = null;
 let modelImporter = null;
 let modelImporterLoading = null;
+let missions = null;
+let impact = null;
 
 const EMPTY_BENCHMARK = { running: false, done: false, progress: 0, cd: 0, cl: 0 };
 
@@ -281,6 +285,24 @@ function init() {
     setBuild,
   });
 
+  missions = createMissions(store, {
+    setDim,
+    setInput,
+    selectPreset,
+    syncStatic: () => ui?.syncStatic(),
+  });
+  impact = createImpactPanel(store, {
+    mask,
+    labelFor: (s) =>
+      s.input === 'camera'
+        ? 'Camera shape'
+        : s.input === 'model'
+          ? 'Blender model'
+          : s.preset === 'custom'
+            ? 'Custom shape'
+            : s.preset.charAt(0).toUpperCase() + s.preset.slice(1),
+  });
+
   const resizeObserver = new ResizeObserver(resizeCanvas);
   resizeObserver.observe(stage);
   window.addEventListener('resize', resizeCanvas);
@@ -320,6 +342,12 @@ function init() {
     },
     get modelImporter() {
       return modelImporter;
+    },
+    get missions() {
+      return missions;
+    },
+    get impact() {
+      return impact;
     },
   };
 
@@ -411,6 +439,7 @@ function init() {
         });
         benchmark = null;
         leaderboard.record({ cd, cl, dim: s.dim.toUpperCase() });
+        missions.onTestComplete({ input: s.input, cd, cl });
       } else {
         store.patch({
           benchmark: { running: true, done: false, progress, cd: 0, cl: 0 },
@@ -425,6 +454,8 @@ function init() {
 
     if (now - lastUi > 50) {
       ui.tick();
+      missions.tick();
+      impact.tick();
       lastUi = now;
     }
   };

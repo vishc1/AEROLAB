@@ -5,7 +5,28 @@ an object up to your webcam), and watch a GPU Navier–Stokes solver — or a 3D
 lattice-Boltzmann solver — reveal the wake, vortices and pressure loads. No
 meshes, no server, no simulation dependencies.
 
-AEROLAB now includes everything from the earlier Slipstream prototype: camera
+A real wind tunnel costs more than a classroom. AEROLAB puts one in a browser
+tab, then teaches with it: five guided missions each isolate one aerodynamic
+idea (wakes, lift, bluff bodies, Reynolds number, testing a physical object)
+with a live target you have to hit in the tunnel. A road panel converts the
+drag you measure into fuel and CO₂ at highway speed, and a pin-and-compare tool
+shows exactly how many litres a shape change saves.
+
+**Live:** <https://slipstream-indol.vercel.app>
+
+## Tracks
+
+- **Education** — a hands-on fluid dynamics lab with no hardware. Missions turn
+  the tunnel into a lesson sequence; the coach explains every test result; the
+  Numerics panel shows the maths behind every number.
+- **Sustainability** — drag is fuel. The road panel scales the measured drag
+  coefficient onto a car at 100 km/h and reports kW, L/100 km and g CO₂/km, so
+  a 20% drag cut is shown in litres, not just a coefficient.
+- **New Frontiers** — a GPU Navier–Stokes solver and a 3D lattice-Boltzmann
+  solver running at 60 FPS in WebGL2, Google MediaPipe hand tracking, and
+  Blender-to-AR, all client side.
+
+AEROLAB also includes everything from the earlier Slipstream prototype: camera
 shape capture, vorticity view, Card/Car presets, the 5-second test, a local
 leaderboard and the flow coach.
 
@@ -27,6 +48,9 @@ npm run preview
 
 ## Highlights
 
+- Five guided missions with a settled baseline, live progress and a lesson on completion
+- Road panel: drag coefficient → kW, L/100 km and g CO₂/km for a car at 100 km/h
+- Pin any shape as a baseline and read the live drag change and litres saved per 10,000 km
 - WebGL2 fractional-step fluid solver with 65,536 live GPU tracers
 - Red/blue vorticity view, pressure telemetry and finite drag/lift readings
 - Mouse drawing plus airfoil, cylinder, plate, card and car presets
@@ -66,6 +90,8 @@ src/
   camera.js        Webcam silhouette tracker
   model-import.js  Blender GLB preview, silhouette projection and WebXR/AR handoff
   leaderboard.js   Efficiency score, localStorage board, flow coach
+  missions.js      Guided challenges: baseline settle, live goal tracking, lessons
+  impact.js        Road-speed fuel/CO₂ translation and pinned-baseline compare
   gl/
     utils.js       WebGL2 context, programs, FBOs, fullscreen quad
     shaders.js     GLSL ES 3.00 solver, background and particle shaders

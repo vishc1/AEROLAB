@@ -67,15 +67,16 @@
             </div>
             <div class="hero-side">
               <p>
-                Test a hand, a physical prototype, or a Blender design in seconds.
-                Watch its wake, compare its score, then place the 3D model in your
-                world with AR — all from the browser.
+                A real wind tunnel costs more than a classroom. This one runs in a
+                browser tab: test a hand, a paper prototype, or a Blender design,
+                learn why the air behaves that way, and see what the drag would cost
+                on the road.
               </p>
               <div class="hero-meta">
                 <span>2D GPU · 3D LATTICE-BOLTZMANN</span>
                 <span>MEDIAPIPE HAND TRACKING</span>
                 <span>BLENDER → AR</span>
-                <span>60 FPS TARGET</span>
+                <span>5 GUIDED MISSIONS</span>
               </div>
               <button id="quick-upload" class="hero-upload" type="button">
                 <span>Upload an object or image</span><b>.GLB / PNG / JPG ↗</b>
@@ -159,6 +160,21 @@
                     <div class="stage-tag stage-tag-top-left">AIR IN <span>→</span></div>
                     <div class="stage-tag stage-tag-top-right">OPEN OUTLET</div>
                     <div class="stage-mode" id="stage-mode">NACA 0012 · AoA 4.5°</div>
+
+                    <div id="mission-hud" class="mission-hud" hidden data-phase="settle">
+                      <div class="mission-hud-head">
+                        <span id="mission-hud-index">MISSION 01</span>
+                        <strong id="mission-hud-title">Streamline the cylinder</strong>
+                        <button id="mission-quit" class="mission-hud-close" type="button" aria-label="Leave mission">×</button>
+                      </div>
+                      <div class="mission-hud-row">
+                        <span id="mission-hud-target">Cd below 0.60</span>
+                        <b id="mission-hud-value">Measuring baseline…</b>
+                      </div>
+                      <div class="mission-hud-track"><i id="mission-hud-bar"></i></div>
+                      <p id="mission-hud-text"></p>
+                      <button id="mission-next" class="mission-hud-next" type="button" hidden>Next mission</button>
+                    </div>
 
                     <div class="stage-bottom-left">
                       <div class="legend-block">
@@ -338,6 +354,7 @@
               </div>
 
               <aside class="metrics-rail" aria-label="Aerodynamic telemetry">
+                <div class="rail-scroll">
                 <div class="metric-block metric-drag">
                   <div class="metric-label">
                     <span>Relative drag</span>
@@ -362,14 +379,6 @@
                   </div>
                 </div>
 
-                <div class="rail-chart">
-                  <div class="rail-heading">
-                    <span>Force history</span>
-                    <span class="chart-live"><i></i> LIVE</span>
-                  </div>
-                  <div class="chart-wrap"><canvas id="cd-chart"></canvas></div>
-                  <div class="chart-axis"><span>−14 s</span><span>now</span></div>
-                </div>
 
                 <div class="rail-stats">
                   <div class="rail-stat">
@@ -390,10 +399,16 @@
                   </div>
                 </div>
 
-                <div class="rail-detail">
-                  <span>Ref. length <b id="ref-length">0.620</b></span>
-                  <span>Surface samples <b id="boundary-count">0</b></span>
-                  <span>Iterations <b id="iter-count">38</b></span>
+                <div class="rail-impact">
+                  <div class="rail-heading">
+                    <span>At road speed</span>
+                    <span class="rail-hint">car · 100 km/h · drag share</span>
+                  </div>
+                  <div class="impact-grid">
+                    <div><strong id="impact-power">—</strong><span>kW to push air</span></div>
+                    <div><strong id="impact-fuel">—</strong><span>L / 100 km</span></div>
+                    <div><strong id="impact-co2">—</strong><span>g CO₂ / km</span></div>
+                  </div>
                 </div>
 
                 <div class="benchmark">
@@ -405,6 +420,47 @@
                   </button>
                   <div class="benchmark-track"><i id="bench-progress"></i></div>
                   <div class="benchmark-note" id="bench-note">Average pressure integral over five seconds.</div>
+                </div>
+
+                <div class="rail-compare">
+                  <div class="rail-heading">
+                    <span>Compare</span>
+                    <span class="compare-actions">
+                      <button id="clear-baseline" class="text-button" type="button" hidden>Unpin</button>
+                      <button id="pin-baseline" class="pin-button" type="button">Pin as baseline</button>
+                    </span>
+                  </div>
+                  <div id="compare-body" class="compare-body">
+                    <p class="compare-empty">Pin the current shape, then sculpt. The drag change and fuel saved show here.</p>
+                    <div class="compare-card">
+                      <img id="baseline-thumb" alt="Pinned baseline silhouette" />
+                      <div class="compare-meta">
+                        <span id="baseline-name">Cylinder</span>
+                        <small>Cd <b id="baseline-cd">0.000</b></small>
+                      </div>
+                      <div class="compare-result">
+                        <strong id="compare-delta" class="compare-delta">—</strong>
+                        <span id="compare-note">drag vs baseline</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="rail-chart">
+                  <div class="rail-heading">
+                    <span>Force history</span>
+                    <span class="chart-live"><i></i> LIVE</span>
+                  </div>
+                  <div class="chart-wrap"><canvas id="cd-chart"></canvas></div>
+                  <div class="chart-axis"><span>−14 s</span><span>now</span></div>
+                </div>
+
+                <div class="rail-detail">
+                  <span>Ref. length <b id="ref-length">0.620</b></span>
+                  <span>Surface samples <b id="boundary-count">0</b></span>
+                  <span>Iterations <b id="iter-count">38</b></span>
+                </div>
+
                 </div>
               </aside>
             </div>
@@ -455,6 +511,15 @@
                 <div class="range-scale"><span>256 × 128</span><span>512 × 256</span></div>
               </div>
             </div>
+
+            <div class="mission-dock" aria-label="Missions">
+              <div class="mission-dock-head">
+                <span class="eyebrow">Learn by doing</span>
+                <b id="mission-count">0 / 5</b>
+              </div>
+              <div id="mission-chips" class="mission-chips" role="group" aria-label="Missions"></div>
+              <p id="mission-brief" class="mission-brief"></p>
+            </div>
           </section>
 
           <section class="experience-strip" aria-label="From prototype to proof">
@@ -465,7 +530,7 @@
             <div class="experience-steps">
               <article><b>01</b><span>CAPTURE</span><p>Pick a real object color or let MediaPipe track your hand.</p></article>
               <article><b>02</b><span>SIMULATE</span><p>Watch the GPU resolve pressure, wake and signed vortices live.</p></article>
-              <article><b>03</b><span>COMPARE</span><p>Run a repeatable five-second test and climb the local board.</p></article>
+              <article><b>03</b><span>COMPARE</span><p>Pin a baseline, cut its drag, and read the saving in litres and CO₂.</p></article>
               <article><b>04</b><span>MAKE IT REAL</span><p>Import a Blender model, test three projections, then launch AR.</p></article>
             </div>
           </section>
@@ -632,6 +697,19 @@
               then normalizes to <code>C<sub>d</sub></code> and
               <code>C<sub>l</sub></code> against the body's reference length. UI metrics
               update at 20 Hz independently of the 60 FPS render loop.
+            </p>
+          </section>
+          <section>
+            <span class="modal-num">08</span>
+            <h3>Missions and the road panel</h3>
+            <p>
+              Each mission loads a shape, waits for the force signal to stabilise, then
+              records a baseline and watches the live telemetry until the target holds for
+              about a second. The road panel scales the relative <code>C<sub>d</sub></code>
+              onto a mid-size car (frontal area 2.2 m², air 1.2 kg/m³) at 100 km/h:
+              <code>P = ½ρv³C<sub>d</sub>A</code>, converted to petrol at 34.2 MJ/L and 25%
+              tank-to-wheel efficiency, and to CO₂ at 2.31 kg/L. It is the drag share only,
+              for comparing shapes, not a certified consumption figure.
             </p>
           </section>
         </div>
