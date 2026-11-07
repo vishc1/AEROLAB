@@ -9,6 +9,15 @@
       content="AEROLAB — a real-time WebGL2 wind tunnel. Draw a shape, watch the air answer."
     />
     <meta name="theme-color" content="#07100f" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="AEROLAB — a wind tunnel in a browser tab" />
+    <meta property="og:description" content="Draw a shape or hold one up to the camera, watch a GPU fluid solver reveal the wake, and learn why. Five missions, drag in litres of fuel, shareable designs." />
+    <meta property="og:image" content="https://slipstream-indol.vercel.app/og.jpg" />
+    <meta property="og:url" content="https://slipstream-indol.vercel.app/" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="AEROLAB — a wind tunnel in a browser tab" />
+    <meta name="twitter:description" content="A real-time wind tunnel for things you make. Guided missions, drag as fuel and CO₂, AI coach, class leaderboards." />
+    <meta name="twitter:image" content="https://slipstream-indol.vercel.app/og.jpg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -561,13 +570,36 @@
                 <span class="eyebrow">Workshop</span>
                 <h2>Run the test. <em>Climb the board.</em></h2>
               </div>
-              <p class="notes-intro">
-                Five seconds of averaged drag and lift becomes an efficiency score.
-                Scores are kept in this browser.
+              <p class="notes-intro" id="workshop-note">
+                Scores are kept in this browser. Join a class room to climb the same
+                board as everyone else.
               </p>
             </div>
             <div class="workshop-grid">
-              <div id="leaderboard" class="leaderboard"></div>
+              <div class="board-column">
+                <div id="room-bar" class="room-bar">
+                  <form id="room-join" class="room-join">
+                    <span class="eyebrow">Class room</span>
+                    <input id="room-code" type="text" inputmode="text" autocomplete="off" maxlength="8" placeholder="Room code" aria-label="Room code" />
+                    <button class="shape-chip" type="submit">Join</button>
+                    <button id="room-create" class="shape-chip shape-chip-strong" type="button">Create a room</button>
+                  </form>
+                  <div id="room-active" class="room-active" hidden>
+                    <span class="eyebrow">Class room</span>
+                    <b id="room-active-code">ABCD</b>
+                    <small id="room-active-count">0 runs</small>
+                    <button id="room-copy" class="shape-chip" type="button">Copy invite</button>
+                    <button id="room-leave" class="shape-chip" type="button">Leave</button>
+                  </div>
+                  <label class="room-name">
+                    <span>Your name</span>
+                    <input id="room-name" type="text" maxlength="32" autocomplete="nickname" placeholder="Shown on the board" />
+                  </label>
+                  <div id="room-status" class="room-status" data-state=""></div>
+                </div>
+                <div id="room-board" class="leaderboard" hidden></div>
+                <div id="leaderboard" class="leaderboard"></div>
+              </div>
               <div id="coach-card" class="coach-card">
                 <span class="coach-icon">✦</span>
                 <p class="eyebrow">Flow coach</p>

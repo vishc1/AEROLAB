@@ -15,6 +15,8 @@ import { createImpactPanel } from './impact.js';
 import { createShare } from './share.js';
 import { createReport } from './report.js';
 import { createTour } from './tour.js';
+import { createClassroom } from './classroom.js';
+import { efficiency } from './leaderboard.js';
 import { roadImpact } from './impact.js';
 
 const store = createStore();
@@ -45,6 +47,7 @@ let missions = null;
 let impact = null;
 let share = null;
 let report = null;
+let classroom = null;
 let captureRequests = [];
 
 /** Resolves with a PNG data URL of the next rendered tunnel frame. */
@@ -335,6 +338,7 @@ function init() {
     baseline: () => impact.baseline,
   });
   createTour();
+  classroom = createClassroom();
 
   const resizeObserver = new ResizeObserver(resizeCanvas);
   resizeObserver.observe(stage);
@@ -387,6 +391,9 @@ function init() {
     },
     get report() {
       return report;
+    },
+    get classroom() {
+      return classroom;
     },
     captureFrame,
   };
@@ -523,6 +530,7 @@ function init() {
           },
         });
         missions.onTestComplete({ input: s.input, cd, cl });
+        classroom.submit({ design: labelFor(s), cd, cl, score: efficiency(cd, cl) });
       } else {
         store.patch({
           benchmark: { running: true, done: false, progress, cd: 0, cl: 0 },

@@ -55,6 +55,8 @@ npm run preview
 - Export a PNG report card with the live tunnel frame, coefficients, road numbers and mission progress
 - AI flow coach: after each five-second test a serverless function asks Claude to explain what the air did to this shape and suggest one change; the rule-based coach stays as the fallback
 - First-visit tour and a classroom section with three lessons mapped to NGSS standards
+- Class rooms: a four-letter code puts a whole class on one live leaderboard (Vercel Blob with ETag-conditional writes); invite links join on open
+- Link previews (Open Graph and Twitter cards) and a submission write-up in `SUBMISSION.md`
 - WebGL2 fractional-step fluid solver with 65,536 live GPU tracers
 - Red/blue vorticity view, pressure telemetry and finite drag/lift readings
 - Mouse drawing plus airfoil, cylinder, plate, card and car presets
@@ -99,8 +101,10 @@ src/
   share.js         Silhouette ↔ URL hash codec and the shared-design banner
   report.js        PNG report card composed from the live frame and telemetry
   tour.js          Three-step first-visit tour
+  classroom.js     Shared class-room board: join, create, post runs, poll
 api/
   coach.js         Vercel function: Claude explains a test result (needs ANTHROPIC_API_KEY)
+  board.js         Vercel function: class-room leaderboard on Vercel Blob (needs BLOB_READ_WRITE_TOKEN)
   gl/
     utils.js       WebGL2 context, programs, FBOs, fullscreen quad
     shaders.js     GLSL ES 3.00 solver, background and particle shaders
@@ -173,6 +177,15 @@ The coach endpoint lives at `api/coach.js` and runs as a Vercel function. Set
 `ANTHROPIC_API_KEY` in the Vercel project (Settings → Environment Variables)
 and redeploy. Without the key the endpoint answers 503 and the browser keeps
 the built-in rule-based coach, so the app never depends on it.
+
+## Class rooms setup
+
+The board endpoint at `api/board.js` stores one JSON blob per room in a Vercel
+Blob store. The store `aerolab-classrooms` is linked to the Vercel project,
+which injects `BLOB_READ_WRITE_TOKEN` into every environment. For local
+development run `vercel dev` so the functions and the token are available;
+plain `npm run dev` serves the page without the API, and the board falls back
+to the local leaderboard.
 
 ## Verification scripts
 
