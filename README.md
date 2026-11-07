@@ -21,6 +21,7 @@ npm run dev
 - Live tolerance tuning, largest-object cleanup, hole filling, temporal mask smoothing, and outline-quality diagnostics
 - Camera silhouettes normalized to a safe 25% tunnel height with protected inlet/outlet padding
 - Three-frame presence confirmation and automatic obstacle/wake clearing when the object leaves the camera
+- Smoothed vertical tracking: raising or lowering the real object moves it through the tunnel while preserving safe padding
 - Frozen-shape five-second test runs
 - Height-normalized local leaderboard and design feedback
 

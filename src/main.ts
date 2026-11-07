@@ -1,6 +1,7 @@
 import './style.css';
 import { LBM, type Preset } from './lbm';
 import { hsvToRgb, matchesColor, rgbToHsv } from './color';
+import { mapCameraYToTunnel } from './tracking';
 
 type Score = { id: number; name: string; drag: number; lift: number; efficiency: number; date: string; insight: string };
 type Particle = { x: number; y: number; px: number; py: number; age: number };
@@ -120,6 +121,7 @@ let validMaskFrames = 0;
 let lastValidMaskAt = 0;
 let objectTracked = false;
 let trackedCoverage = 0;
+let trackedTunnelCenterY = sim.height * .5;
 const maskConfidence = new Float32Array(sim.size);
 let captureStart = 0;
 let captureSamples: { drag: number; lift: number }[] = [];
@@ -250,7 +252,7 @@ function setFeedPrompt(message: string) { document.querySelector('#feedPrompt')!
 function resetColorTracking() { maskConfidence.fill(0); maskUsable = false; validMaskFrames = 0; lastValidMaskAt = 0; }
 function clearCameraObject(message = 'No matching object—tunnel cleared') {
   if (objectTracked) { sim.reset('clear'); smokeCtx.clearRect(0, 0, smokeCanvas.width, smokeCanvas.height); }
-  objectTracked = false; trackedCoverage = 0; validMaskFrames = 0; maskUsable = false;
+  objectTracked = false; trackedCoverage = 0; trackedTunnelCenterY = sim.height * .5; validMaskFrames = 0; maskUsable = false;
   maskCtx.clearRect(0, 0, maskPreview.width, maskPreview.height);
   if (cameraStream) { document.querySelector('#cameraState')!.textContent = 'SEARCHING'; setFeedPrompt(message); }
 }
@@ -381,7 +383,10 @@ function fitMaskToTunnel(mask: Uint8Array) {
   const sourceWidth = maxX - minX + 1, sourceHeight = maxY - minY + 1;
   const scale = Math.min((sim.height * .25) / sourceHeight, (sim.width * .22) / sourceWidth);
   const targetWidth = Math.max(2, Math.round(sourceWidth * scale)), targetHeight = Math.max(2, Math.round(sourceHeight * scale));
-  const left = Math.round(sim.width * .27 - targetWidth / 2), top = Math.round(sim.height * .5 - targetHeight / 2);
+  const sourceCenterY = (minY + maxY) * .5;
+  const mappedCenterY = mapCameraYToTunnel(sourceCenterY, sim.height, targetHeight, sim.height, 10);
+  trackedTunnelCenterY = objectTracked ? trackedTunnelCenterY * .65 + mappedCenterY * .35 : mappedCenterY;
+  const left = Math.round(sim.width * .27 - targetWidth / 2), top = Math.round(trackedTunnelCenterY - targetHeight / 2);
   for (let y = 0; y < targetHeight; y++) for (let x = 0; x < targetWidth; x++) {
     const sourceX = minX + Math.min(sourceWidth - 1, Math.floor(x / targetWidth * sourceWidth));
     const sourceY = minY + Math.min(sourceHeight - 1, Math.floor(y / targetHeight * sourceHeight));
@@ -434,7 +439,7 @@ function updateCameraMask(now: number) {
       trackedCoverage = objectTracked ? trackedCoverage * .8 + quality.coverage * .2 : quality.coverage;
       objectTracked = true; lastValidMaskAt = now;
       document.querySelector('#cameraState')!.textContent = 'TRACKING';
-      setFeedPrompt('Object isolated—freeze when ready');
+      setFeedPrompt('Object isolated—move it up or down, then freeze');
     }
   } else {
     validMaskFrames = 0;
