@@ -15,7 +15,8 @@ npm run dev
 - Mouse-drawn and preset obstacles
 - Momentum-exchange drag and lift estimates
 - Speed/vorticity field and advected tracer particles
-- Webcam silhouette extraction for white or green backdrops
+- Click-to-sample detection for any object or backdrop color
+- Live tolerance tuning, largest-object cleanup, temporal mask smoothing, and outline-quality diagnostics
 - Frozen-shape five-second test runs
 - Height-normalized local leaderboard and design feedback
 

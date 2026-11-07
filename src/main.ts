@@ -36,9 +36,25 @@ app.innerHTML = `
           <div class="scale"><span></span><label>FLOW SPEED</label><span></span></div>
           <div class="draw-hint" id="drawHint">DRAW A SHAPE · RIGHT-DRAG TO ERASE</div>
           <div class="camera-panel" id="cameraPanel" hidden>
-            <video id="video" autoplay playsinline muted></video>
-            <canvas id="maskPreview"></canvas>
-            <div class="camera-copy"><b>Camera outline</b><span>Use a bright, plain backdrop.</span></div>
+            <div class="camera-head"><span><i></i> COLOR LAB</span><b id="cameraState">OFFLINE</b></div>
+            <div class="camera-feed" id="cameraFeed" title="Sample a color from the live camera">
+              <video id="video" autoplay playsinline muted></video>
+              <canvas id="maskPreview"></canvas>
+              <span class="sample-reticle">+</span>
+              <div class="feed-prompt" id="feedPrompt">Start the camera to calibrate</div>
+            </div>
+            <div class="calibration">
+              <label>What should become solid?
+                <select id="detectMode"><option value="object">The color I select</option><option value="backdrop">Everything except this color</option></select>
+              </label>
+              <div class="color-row">
+                <label class="color-well" title="Choose a color"><input id="keyColor" type="color" value="#ef6b4a"><span id="colorHex">#EF6B4A</span></label>
+                <button id="pickColorBtn"><span>⌖</span> Pick from video</button>
+              </div>
+              <label class="tolerance-label"><span>Color tolerance <b id="toleranceValue">42</b></span><input id="tolerance" type="range" min="8" max="120" value="42"></label>
+              <div class="mask-status" id="maskStatus" data-state="idle"><i></i><span>Waiting for camera</span><b id="coverage">0%</b></div>
+            </div>
+            <div class="camera-steps"><span><b>1</b> Start</span><span><b>2</b> Pick color</span><span><b>3</b> Freeze</span></div>
           </div>
           <div class="countdown" id="countdown" hidden><span>TEST RUN</span><strong>5.0</strong><small>Keep your shape steady</small></div>
         </div>
@@ -51,7 +67,7 @@ app.innerHTML = `
       </div>
       <div class="controlbar">
         <div class="brush-controls"><button id="clearBtn">Clear</button><label>Brush <input id="brush" type="range" min="2" max="12" value="6"></label><button id="resetBtn">Reset flow</button></div>
-        <div class="camera-controls" hidden><button id="cameraBtn">Start camera</button><label>Backdrop <select id="backdrop"><option value="white">White / bright</option><option value="green">Green</option></select></label><button id="freezeBtn" disabled>Freeze shape</button></div>
+        <div class="camera-controls" hidden><button id="cameraBtn">Start camera</button><span class="camera-help">Pick any object or backdrop color from the live view.</span><button id="freezeBtn" disabled>Freeze shape</button></div>
         <button class="capture" id="captureBtn"><span>◎</span> RUN 5-SECOND TEST</button>
       </div>
     </section>
@@ -94,6 +110,10 @@ let brush = 6;
 let cameraStream: MediaStream | null = null;
 let cameraFrozen = false;
 let lastMaskUpdate = 0;
+let selectedColor = { r: 239, g: 107, b: 74 };
+let pickingColor = false;
+let maskUsable = false;
+const maskConfidence = new Float32Array(sim.size);
 let captureStart = 0;
 let captureSamples: { drag: number; lift: number }[] = [];
 let frameCount = 0;
@@ -186,6 +206,7 @@ document.querySelectorAll<HTMLButtonElement>('[data-preset]').forEach(button => 
 
 document.querySelectorAll<HTMLButtonElement>('.mode-tab').forEach(button => button.addEventListener('click', () => {
   mode = button.dataset.mode as typeof mode;
+  if (mode === 'camera') sim.reset('clear');
   document.querySelectorAll('.mode-tab').forEach(b => b.classList.toggle('active', b === button));
   document.querySelector<HTMLElement>('.brush-controls')!.hidden = mode !== 'draw';
   document.querySelector<HTMLElement>('.camera-controls')!.hidden = mode !== 'camera';
@@ -199,37 +220,133 @@ document.querySelector('#resetBtn')!.addEventListener('click', () => sim.reset()
 
 const video = document.querySelector<HTMLVideoElement>('#video')!;
 const maskPreview = document.querySelector<HTMLCanvasElement>('#maskPreview')!;
-const maskCtx = maskPreview.getContext('2d', { willReadFrequently: true })!;
+const maskCtx = maskPreview.getContext('2d')!;
+const captureCanvas = document.createElement('canvas');
+captureCanvas.width = 240; captureCanvas.height = 160;
+const captureCtx = captureCanvas.getContext('2d', { willReadFrequently: true })!;
 const cameraBtn = document.querySelector<HTMLButtonElement>('#cameraBtn')!;
 const freezeBtn = document.querySelector<HTMLButtonElement>('#freezeBtn')!;
+const cameraFeed = document.querySelector<HTMLDivElement>('#cameraFeed')!;
+const pickColorBtn = document.querySelector<HTMLButtonElement>('#pickColorBtn')!;
+const keyColor = document.querySelector<HTMLInputElement>('#keyColor')!;
+const detectMode = document.querySelector<HTMLSelectElement>('#detectMode')!;
+const tolerance = document.querySelector<HTMLInputElement>('#tolerance')!;
+const maskStatus = document.querySelector<HTMLDivElement>('#maskStatus')!;
+
+function setFeedPrompt(message: string) { document.querySelector('#feedPrompt')!.textContent = message; }
+function resetColorTracking() { maskConfidence.fill(0); maskUsable = false; }
+function setSelectedColor(r: number, g: number, b: number) {
+  selectedColor = { r: Math.round(r), g: Math.round(g), b: Math.round(b) };
+  const hex = `#${[selectedColor.r, selectedColor.g, selectedColor.b].map(v => v.toString(16).padStart(2, '0')).join('')}`;
+  keyColor.value = hex;
+  document.querySelector('#colorHex')!.textContent = hex.toUpperCase();
+  resetColorTracking();
+}
+
 cameraBtn.addEventListener('click', async () => {
-  if (cameraStream) { cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; cameraBtn.textContent = 'Start camera'; freezeBtn.disabled = true; return; }
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; cameraBtn.textContent = 'Start camera'; freezeBtn.disabled = true;
+    document.querySelector('#cameraState')!.textContent = 'OFFLINE'; setFeedPrompt('Start the camera to calibrate');
+    maskStatus.dataset.state = 'idle'; maskStatus.querySelector('span')!.textContent = 'Waiting for camera'; return;
+  }
   try {
     cameraStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: 'user' }, audio: false });
     video.srcObject = cameraStream; cameraBtn.textContent = 'Stop camera'; freezeBtn.disabled = false; cameraFrozen = false;
-  } catch { cameraBtn.textContent = 'Camera blocked — try again'; }
+    document.querySelector('#cameraState')!.textContent = 'LIVE'; setFeedPrompt('Click “Pick from video,” then click your color');
+  } catch { cameraBtn.textContent = 'Camera blocked — try again'; setFeedPrompt('Allow camera access, then try again'); }
 });
-freezeBtn.addEventListener('click', () => { cameraFrozen = !cameraFrozen; freezeBtn.textContent = cameraFrozen ? 'Unfreeze shape' : 'Freeze shape'; freezeBtn.classList.toggle('frozen', cameraFrozen); });
+freezeBtn.addEventListener('click', () => {
+  if (!cameraFrozen && !maskUsable) { setFeedPrompt('Tune the color until the outline says ready'); cameraFeed.classList.add('needs-attention'); setTimeout(() => cameraFeed.classList.remove('needs-attention'), 700); return; }
+  cameraFrozen = !cameraFrozen; freezeBtn.textContent = cameraFrozen ? 'Shape frozen ✓' : 'Freeze shape'; freezeBtn.classList.toggle('frozen', cameraFrozen);
+  document.querySelector('#cameraState')!.textContent = cameraFrozen ? 'FROZEN' : 'LIVE';
+  setFeedPrompt(cameraFrozen ? 'Shape locked—ready for a test run' : 'Live outline updating');
+});
+
+keyColor.addEventListener('input', () => {
+  const value = keyColor.value;
+  setSelectedColor(parseInt(value.slice(1, 3), 16), parseInt(value.slice(3, 5), 16), parseInt(value.slice(5, 7), 16));
+});
+detectMode.addEventListener('change', () => { resetColorTracking(); setFeedPrompt(detectMode.value === 'object' ? 'Pick the object’s strongest color' : 'Pick the clean backdrop color'); });
+tolerance.addEventListener('input', () => { document.querySelector('#toleranceValue')!.textContent = tolerance.value; resetColorTracking(); });
+pickColorBtn.addEventListener('click', () => {
+  if (!cameraStream) { setFeedPrompt('Start the camera first'); return; }
+  pickingColor = !pickingColor; cameraFeed.classList.toggle('sampling', pickingColor); pickColorBtn.classList.toggle('active', pickingColor);
+  pickColorBtn.innerHTML = pickingColor ? '<span>⌖</span> Click the video…' : '<span>⌖</span> Pick from video';
+  setFeedPrompt(pickingColor ? `Click the ${detectMode.value === 'object' ? 'object' : 'backdrop'} color you want` : 'Live outline updating');
+});
+cameraFeed.addEventListener('click', event => {
+  if (!pickingColor || !cameraStream || video.readyState < 2) return;
+  const rect = cameraFeed.getBoundingClientRect();
+  const x = Math.max(0, Math.min(239, Math.floor((event.clientX - rect.left) / rect.width * 240)));
+  const y = Math.max(0, Math.min(159, Math.floor((event.clientY - rect.top) / rect.height * 160)));
+  captureCtx.save(); captureCtx.scale(-1, 1); captureCtx.drawImage(video, -240, 0, 240, 160); captureCtx.restore();
+  const sample = captureCtx.getImageData(Math.max(0, x - 3), Math.max(0, y - 3), Math.min(7, 240 - Math.max(0, x - 3)), Math.min(7, 160 - Math.max(0, y - 3))).data;
+  const values: number[][] = [[], [], []];
+  for (let p = 0; p < sample.length; p += 4) { values[0].push(sample[p]); values[1].push(sample[p + 1]); values[2].push(sample[p + 2]); }
+  values.forEach(channel => channel.sort((a, b) => a - b));
+  setSelectedColor(values[0][Math.floor(values[0].length / 2)], values[1][Math.floor(values[1].length / 2)], values[2][Math.floor(values[2].length / 2)]);
+  pickingColor = false; cameraFeed.classList.remove('sampling'); pickColorBtn.classList.remove('active'); pickColorBtn.innerHTML = '<span>⌖</span> Pick from video'; setFeedPrompt('Color sampled—adjust tolerance if needed');
+});
+
+function keepLargestComponent(mask: Uint8Array) {
+  const labels = new Int32Array(sim.size); const queue = new Int32Array(sim.size); const sizes = [0]; let label = 0;
+  for (let start = 0; start < sim.size; start++) {
+    if (!mask[start] || labels[start]) continue;
+    label++; let head = 0, tail = 0; queue[tail++] = start; labels[start] = label;
+    while (head < tail) {
+      const i = queue[head++], x = i % sim.width, y = Math.floor(i / sim.width);
+      const neighbors = [i - 1, i + 1, i - sim.width, i + sim.width];
+      for (const n of neighbors) if (n >= 0 && n < sim.size && !labels[n] && mask[n] && Math.abs((n % sim.width) - x) + Math.abs(Math.floor(n / sim.width) - y) === 1) { labels[n] = label; queue[tail++] = n; }
+    }
+    sizes[label] = tail;
+  }
+  let winner = 0; for (let i = 1; i < sizes.length; i++) if (sizes[i] > (sizes[winner] || 0)) winner = i;
+  const output = new Uint8Array(sim.size); if ((sizes[winner] || 0) < 12) return output;
+  for (let i = 0; i < sim.size; i++) if (labels[i] === winner) output[i] = 1;
+  return output;
+}
+
+function updateMaskQuality(mask: Uint8Array) {
+  let count = 0, edge = 0;
+  for (let y = 2; y < sim.height - 2; y++) for (let x = 14; x < sim.width - 18; x++) if (mask[x + y * sim.width]) { count++; if (x < 19 || x > sim.width - 24 || y < 7 || y > sim.height - 8) edge++; }
+  const coverageValue = count / ((sim.width - 32) * (sim.height - 4));
+  document.querySelector('#coverage')!.textContent = `${Math.round(coverageValue * 100)}%`;
+  let state = 'good', message = 'Outline ready';
+  if (coverageValue < .004) { state = 'bad'; message = 'No object found—raise tolerance'; }
+  else if (coverageValue > .52) { state = 'bad'; message = 'Too much selected—lower tolerance'; }
+  else if (edge / Math.max(1, count) > .18) { state = 'warn'; message = 'Selection touches edge—reframe it'; }
+  else if (coverageValue < .018) { state = 'warn'; message = 'Very small object—move closer'; }
+  maskUsable = state !== 'bad'; maskStatus.dataset.state = state; maskStatus.querySelector('span')!.textContent = message;
+}
 
 function updateCameraMask(now: number) {
   if (!cameraStream || cameraFrozen || video.readyState < 2 || now - lastMaskUpdate < 100) return;
   lastMaskUpdate = now; maskPreview.width = 240; maskPreview.height = 160;
-  maskCtx.save(); maskCtx.scale(-1, 1); maskCtx.drawImage(video, -240, 0, 240, 160); maskCtx.restore();
-  const frame = maskCtx.getImageData(0, 0, 240, 160); const d = frame.data;
-  const raw = new Uint8Array(sim.size); const green = document.querySelector<HTMLSelectElement>('#backdrop')!.value === 'green';
+  captureCtx.save(); captureCtx.scale(-1, 1); captureCtx.drawImage(video, -240, 0, 240, 160); captureCtx.restore();
+  const frame = captureCtx.getImageData(0, 0, 240, 160); const d = frame.data;
+  const raw = new Uint8Array(sim.size); const threshold = Number(tolerance.value); const selectingObject = detectMode.value === 'object';
   for (let y = 0; y < sim.height; y++) for (let x = 0; x < sim.width; x++) {
     const vy = Math.floor(y / sim.height * 160); const p = (x + vy * 240) * 4; const r = d[p], g = d[p + 1], b = d[p + 2];
-    const foreground = green ? !(g > r * 1.28 && g > b * 1.18 && g > 70) : (r + g + b) / 3 < 185;
+    const distance = Math.sqrt(.3 * (r - selectedColor.r) ** 2 + .59 * (g - selectedColor.g) ** 2 + .11 * (b - selectedColor.b) ** 2);
+    const foreground = selectingObject ? distance <= threshold : distance > threshold;
     if (foreground && x > 14 && x < sim.width - 18 && y > 3 && y < sim.height - 4) raw[x + y * sim.width] = 1;
   }
-  const clean = new Uint8Array(sim.size);
+  const stable = new Uint8Array(sim.size);
+  for (let i = 0; i < sim.size; i++) { maskConfidence[i] = maskConfidence[i] * .68 + raw[i] * .32; stable[i] = maskConfidence[i] > .46 ? 1 : 0; }
+  const smooth = new Uint8Array(sim.size);
   for (let y = 2; y < sim.height - 2; y++) for (let x = 15; x < sim.width - 18; x++) {
-    let n = 0; for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) n += raw[x + ox + (y + oy) * sim.width];
-    clean[x + y * sim.width] = n >= 5 ? 1 : 0;
+    let n = 0; for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) n += stable[x + ox + (y + oy) * sim.width];
+    smooth[x + y * sim.width] = n >= 4 ? 1 : 0;
   }
+  const clean = keepLargestComponent(smooth);
   sim.setMask(clean);
-  for (let p = 0; p < d.length; p += 4) { const on = raw[(p / 4) % 240 + Math.floor((p / 4) / 240) * sim.width] ?? 0; if (on) { d[p] = 241; d[p + 1] = 255; d[p + 2] = 89; } d[p + 3] = 255; }
-  maskCtx.putImageData(frame, 0, 0);
+  updateMaskQuality(clean);
+  const overlay = maskCtx.createImageData(240, 160);
+  for (let py = 0; py < 160; py++) for (let px = 0; px < 240; px++) {
+    const gy = Math.min(sim.height - 1, Math.floor(py / 160 * sim.height)); const on = clean[px + gy * sim.width]; const p = (px + py * 240) * 4;
+    if (on) { overlay.data[p] = 239; overlay.data[p + 1] = 255; overlay.data[p + 2] = 87; overlay.data[p + 3] = 178; }
+  }
+  maskCtx.putImageData(overlay, 0, 0);
 }
 
 function efficiency(drag: number, lift: number) { return Math.max(0, Math.min(100, 100 - drag * 24 + Math.min(8, Math.abs(lift) * 3))); }
@@ -250,7 +367,9 @@ function escapeHtml(value: string) { const el = document.createElement('span'); 
 
 document.querySelector('#captureBtn')!.addEventListener('click', () => {
   if (captureStart) return;
-  if (cameraStream && !cameraFrozen) { cameraFrozen = true; freezeBtn.textContent = 'Unfreeze shape'; freezeBtn.classList.add('frozen'); }
+  if (mode === 'camera' && !cameraStream) { setFeedPrompt('Start the camera before running a test'); cameraFeed.classList.add('needs-attention'); setTimeout(() => cameraFeed.classList.remove('needs-attention'), 700); return; }
+  if (mode === 'camera' && !cameraFrozen && !maskUsable) { setFeedPrompt('Finish calibration—the outline is not ready yet'); cameraFeed.classList.add('needs-attention'); setTimeout(() => cameraFeed.classList.remove('needs-attention'), 700); return; }
+  if (cameraStream && !cameraFrozen) { cameraFrozen = true; freezeBtn.textContent = 'Shape frozen ✓'; freezeBtn.classList.add('frozen'); document.querySelector('#cameraState')!.textContent = 'FROZEN'; }
   captureStart = performance.now(); captureSamples = [];
   document.querySelector<HTMLElement>('#countdown')!.hidden = false;
   document.querySelector<HTMLButtonElement>('#captureBtn')!.disabled = true;
