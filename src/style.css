@@ -2266,3 +2266,47 @@ body.is-3d #input-overlay, body.is-camera #input-overlay, body.is-model #input-o
   .experience-steps article, .experience-steps article + article { padding: 0 0 16px; border-right: 0; border-bottom: 1px solid var(--line); }
   .experience-steps article:last-child { border-bottom: 0; }
 }
+
+/* ---- hackathon polish: sketch dock, equations, explain, compare, demo ---- */
+.sketch-dock { position: absolute; left: 12px; bottom: 12px; z-index: 7; display: flex; gap: 10px; align-items: flex-end; max-width: calc(100% - 24px); }
+.sketch-dock[hidden], .eq-card[hidden], .demo-caption[hidden] { display: none; }
+.dock-pane { background: rgba(4, 14, 20, 0.86); border: 1px solid rgba(120, 190, 205, 0.35); border-radius: 8px; padding: 6px; display: flex; flex-direction: column; gap: 5px; backdrop-filter: blur(4px); }
+.dock-label { font: 9px/1 ui-monospace, monospace; letter-spacing: 0.12em; color: rgba(160, 210, 220, 0.85); }
+.dock-pane canvas { width: 216px; height: 108px; border-radius: 4px; cursor: crosshair; touch-action: none; image-rendering: pixelated; border: 1px solid rgba(120, 190, 205, 0.25); }
+#side-canvas { image-rendering: auto; }
+.dock-chips { display: flex; flex-wrap: wrap; gap: 4px; max-width: 216px; }
+.dock-chips .shape-chip { padding: 3px 7px; font-size: 10px; }
+body:not(.build-sketch) #plan-pane { display: none; }
+.shape-demo { background: linear-gradient(135deg, #d9ff3f, #9bdc2a); color: #10200a; border-color: transparent; font-weight: 600; }
+.eq-card { position: absolute; right: 12px; top: 44px; z-index: 8; width: min(430px, calc(100% - 24px)); background: rgba(4, 14, 20, 0.92); border: 1px solid rgba(217, 255, 63, 0.4); border-radius: 10px; padding: 12px 14px; color: #e8efe6; font-size: 12px; }
+.eq-main { font-family: ui-serif, Georgia, serif; font-size: 15px; margin: 8px 0; color: #f2ead6; }
+.eq-terms { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 5px; }
+.eq-terms li { display: grid; grid-template-columns: 70px 1fr; gap: 8px; align-items: baseline; }
+.eq-terms i { font-family: ui-serif, Georgia, serif; color: #d9ff3f; }
+.eq-re { border-top: 1px solid rgba(255, 255, 255, 0.1); padding-top: 7px; }
+.eq-re b { color: #d9ff3f; }
+.demo-caption { position: absolute; left: 50%; top: 14px; transform: translateX(-50%); z-index: 9; background: rgba(4, 14, 20, 0.9); border: 1px solid rgba(217, 255, 63, 0.55); border-radius: 999px; padding: 9px 18px; display: flex; gap: 12px; align-items: center; max-width: calc(100% - 24px); box-shadow: 0 6px 30px rgba(0, 0, 0, 0.5); }
+.demo-caption span { font: 10px ui-monospace, monospace; color: #d9ff3f; letter-spacing: 0.12em; white-space: nowrap; }
+.demo-caption strong { font-weight: 500; font-size: 14px; color: #f2ead6; }
+.explain-card, .compare-card { border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 10px 12px; margin-top: 10px; font-size: 12px; line-height: 1.5; color: #cfd8cf; }
+.explain-card p { margin: 6px 0 0; }
+.compare-body { margin-top: 6px; }
+.compare-card .rail-heading { align-items: center; gap: 8px; }
+.compare-card .shape-chip { padding: 3px 8px; font-size: 10px; }
+.cmp-row { display: flex; justify-content: space-between; gap: 8px; font-variant-numeric: tabular-nums; }
+.cmp-up { color: #ff8a6a; } .cmp-down { color: #8cf08c; }
+.cmp-thumb { width: 64px; height: 32px; border: 1px solid rgba(255, 255, 255, 0.2); border-radius: 4px; background: #071820; float: right; margin-left: 8px; }
+.export-row { display: flex; gap: 8px; margin-top: 10px; }
+.export-row .shape-chip { flex: 1; }
+.board-controls { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin: 4px 0 14px; }
+.board-source { font: 10px ui-monospace, monospace; letter-spacing: 0.1em; padding: 4px 9px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.2); color: #aab; }
+.board-source[data-state="live"] { color: #8cf08c; border-color: rgba(140, 240, 140, 0.5); }
+.name-form { display: flex; gap: 8px; margin-top: 10px; }
+.name-form input { flex: 1; min-width: 0; background: rgba(255, 255, 255, 0.06); border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 8px; padding: 8px 10px; color: inherit; font: inherit; }
+.coach-ld, .coach-saved { font: 11px ui-monospace, monospace; opacity: 0.8; }
+@media (max-width: 760px) {
+  .sketch-dock { flex-direction: column; align-items: flex-start; }
+  .dock-pane canvas { width: 150px; height: 75px; }
+  .eq-card { top: auto; bottom: 12px; }
+}
+.shape-bar { flex: 1 1 0; flex-wrap: wrap; padding-top: 6px; padding-bottom: 6px; row-gap: 5px; }

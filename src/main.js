@@ -10,6 +10,9 @@ import { createUI } from './ui.js';
 import { Sim3D } from './sim3d.js';
 import { CameraTracker } from './camera.js';
 import { createLeaderboard } from './leaderboard.js';
+import { SketchDock } from './sketch.js';
+import { createDemo } from './demo.js';
+import { liftToDrag } from './scoring.js';
 
 const store = createStore();
 
@@ -35,6 +38,10 @@ let camera = null;
 let leaderboard = null;
 let modelImporter = null;
 let modelImporterLoading = null;
+let sketchDock = null;
+let autoName = null;
+let exportPending = false;
+let baseline = null;
 
 const EMPTY_BENCHMARK = { running: false, done: false, progress: 0, cd: 0, cl: 0 };
 
@@ -72,6 +79,7 @@ function cancelBenchmark() {
 
 function rebuild3d() {
   if (!sim3d || store.state.dim !== '3d') return;
+  if (sketchDock) sim3d.setPlanform(sketchDock.plan);
   sim3d.setObstacle(mask.getCpuMask(), mask.width, mask.height, store.state.build);
 }
 
@@ -239,6 +247,52 @@ function resetSimulation() {
   ui?.syncStatic();
 }
 
+function download(blob, filename) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+function setupReports() {
+  document.getElementById('export-png').addEventListener('click', () => {
+    exportPending = true;
+  });
+  document.getElementById('export-csv').addEventListener('click', () => {
+    const s = store.state;
+    const m = s.metrics;
+    const row = [
+      s.dim, s.preset, s.windSpeed, s.viscosity, m.re.toFixed(1), m.regime,
+      m.cd.toFixed(4), m.cl.toFixed(4), m.fd.toFixed(4), m.fl.toFixed(4), liftToDrag(m.cd, m.cl).toFixed(3),
+    ];
+    const csv = 'dim,shape,wind_mps,viscosity,reynolds,regime,cd,cl,drag_n,lift_n,lift_to_drag\n' + row.join(',') + '\n';
+    download(new Blob([csv], { type: 'text/csv' }), `aerolab-results-${Date.now()}.csv`);
+  });
+  const body = document.getElementById('compare-body');
+  document.getElementById('pin-baseline').addEventListener('click', () => {
+    const m = store.state.metrics;
+    baseline = { cd: m.cd, cl: m.cl, ld: liftToDrag(m.cd, m.cl), dim: store.state.dim };
+  });
+  setInterval(() => {
+    if (!baseline) return;
+    const m = store.state.metrics;
+    const ld = liftToDrag(m.cd, m.cl);
+    const d = (now, then, lowerIsBetter, digits = 3) => {
+      const diff = now - then;
+      const better = lowerIsBetter ? diff < 0 : diff > 0;
+      const cls = Math.abs(diff) < 1e-3 ? '' : better ? 'cmp-down' : 'cmp-up';
+      return `<span class="${cls}">${diff >= 0 ? '+' : ''}${diff.toFixed(digits)}</span>`;
+    };
+    body.innerHTML =
+      `<div class="cmp-row"><span>Drag Cd</span><span>${baseline.cd.toFixed(3)} → ${m.cd.toFixed(3)} ${d(m.cd, baseline.cd, true)}</span></div>` +
+      `<div class="cmp-row"><span>Lift Cl</span><span>${baseline.cl.toFixed(3)} → ${m.cl.toFixed(3)} ${d(m.cl, baseline.cl, false)}</span></div>` +
+      `<div class="cmp-row"><span>L/D</span><span>${baseline.ld.toFixed(2)} → ${ld.toFixed(2)} ${d(ld, baseline.ld, false, 2)}</span></div>`;
+  }, 400);
+}
+
 function init() {
   gl = createContext(canvas);
   quad = new FullscreenQuad(gl);
@@ -267,6 +321,30 @@ function init() {
     },
     onLost: clearFlow,
   });
+  sketchDock = new SketchDock({
+    mask,
+    store,
+    sideCanvas: document.getElementById('side-canvas'),
+    planCanvas: document.getElementById('plan-canvas'),
+    onChange: () => {
+      mask.upload();
+      if (store.state.preset !== 'custom') store.patch({ preset: 'custom' });
+      rebuild3d();
+      ui?.syncStatic();
+    },
+  });
+  document.querySelectorAll('[data-plan]').forEach((b) =>
+    b.addEventListener('click', () => {
+      document.querySelectorAll('[data-plan]').forEach((x) => x.classList.toggle('is-active', x === b));
+      sketchDock.applyPreset(b.dataset.plan);
+    }),
+  );
+  const symBtn = document.getElementById('plan-sym');
+  symBtn.addEventListener('click', () => {
+    sketchDock.symmetry = !sketchDock.symmetry;
+    symBtn.setAttribute('aria-pressed', String(sketchDock.symmetry));
+  });
+  document.getElementById('plan-clear').addEventListener('click', () => sketchDock.clearPlan());
   resizeCanvas();
   mask.bindInput(overlay, cursor, store);
 
@@ -279,6 +357,22 @@ function init() {
     setDim,
     setInput,
     setBuild,
+  });
+
+  setupReports();
+  createDemo({
+    store,
+    actions: {
+      setDim,
+      setInput,
+      setBuild,
+      selectPreset,
+      runBenchmark: startBenchmark,
+      syncUI: () => ui?.syncStatic(),
+      setAutoName: (n) => {
+        autoName = n;
+      },
+    },
   });
 
   const resizeObserver = new ResizeObserver(resizeCanvas);
@@ -361,7 +455,9 @@ function init() {
         sim3d.advect();
       }
       sim3d.resize();
-      sim3d.render(mask.canvas);
+      sim3d.vorticity = s.vorticity;
+      sketchDock.drawSide();
+      sim3d.render(null);
       if (now - lastMetric > 60) {
         lastMetric = now;
         const re = computeRe(s.windSpeed, s.viscosity);
@@ -393,6 +489,12 @@ function init() {
       renderer.render(fluid, particles, params);
     }
 
+    if (exportPending) {
+      exportPending = false;
+      const src = s.dim === '3d' ? document.getElementById('gl3d-canvas') : canvas;
+      src.toBlob((blob) => blob && download(blob, `aerolab-${s.dim}-${Date.now()}.png`), 'image/png');
+    }
+
     frameMs += (rawSeconds * 1000 - frameMs) * 0.08;
     fps += (1000 / Math.max(frameMs, 0.1) - fps) * 0.08;
 
@@ -410,7 +512,8 @@ function init() {
           benchmark: { running: false, done: true, progress: 1, cd, cl },
         });
         benchmark = null;
-        leaderboard.record({ cd, cl, dim: s.dim.toUpperCase() });
+        leaderboard.record({ cd, cl, dim: s.dim.toUpperCase(), name: autoName || undefined });
+        autoName = null;
       } else {
         store.patch({
           benchmark: { running: true, done: false, progress, cd: 0, cl: 0 },
