@@ -40,7 +40,7 @@ app.innerHTML = `
             <div class="camera-feed" id="cameraFeed" title="Sample a color from the live camera">
               <video id="video" autoplay playsinline muted></video>
               <canvas id="maskPreview"></canvas>
-              <span class="sample-reticle">+</span>
+              <span class="sample-reticle"><i></i><b>HOLD COLOR HERE</b></span>
               <div class="feed-prompt" id="feedPrompt">Start the camera to calibrate</div>
             </div>
             <div class="calibration">
@@ -49,7 +49,7 @@ app.innerHTML = `
               </label>
               <div class="color-row">
                 <label class="color-well" title="Choose a color"><input id="keyColor" type="color" value="#ef6b4a"><span id="colorHex">#EF6B4A</span></label>
-                <button id="pickColorBtn"><span>⌖</span> Pick from video</button>
+                <button id="pickColorBtn"><span>⌖</span> Sample center</button>
               </div>
               <label class="tolerance-label"><span>Color tolerance <b id="toleranceValue">42</b></span><input id="tolerance" type="range" min="8" max="120" value="42"></label>
               <div class="mask-status" id="maskStatus" data-state="idle"><i></i><span>Waiting for camera</span><b id="coverage">0%</b></div>
@@ -111,7 +111,6 @@ let cameraStream: MediaStream | null = null;
 let cameraFrozen = false;
 let lastMaskUpdate = 0;
 let selectedColor = { r: 239, g: 107, b: 74 };
-let pickingColor = false;
 let maskUsable = false;
 const maskConfidence = new Float32Array(sim.size);
 let captureStart = 0;
@@ -243,6 +242,65 @@ function setSelectedColor(r: number, g: number, b: number) {
   resetColorTracking();
 }
 
+function rgbToHsv(r: number, g: number, b: number) {
+  const rn = r / 255, gn = g / 255, bn = b / 255;
+  const max = Math.max(rn, gn, bn), min = Math.min(rn, gn, bn), delta = max - min;
+  let h = 0;
+  if (delta) {
+    if (max === rn) h = 60 * (((gn - bn) / delta) % 6);
+    else if (max === gn) h = 60 * ((bn - rn) / delta + 2);
+    else h = 60 * ((rn - gn) / delta + 4);
+  }
+  if (h < 0) h += 360;
+  return { h, s: max ? delta / max : 0, v: max };
+}
+
+function hsvToRgb(h: number, s: number, v: number) {
+  const c = v * s, x = c * (1 - Math.abs((h / 60) % 2 - 1)), m = v - c;
+  let rgb = [c, x, 0];
+  if (h >= 60 && h < 120) rgb = [x, c, 0]; else if (h >= 120 && h < 180) rgb = [0, c, x]; else if (h >= 180 && h < 240) rgb = [0, x, c]; else if (h >= 240 && h < 300) rgb = [x, 0, c]; else if (h >= 300) rgb = [c, 0, x];
+  return rgb.map(channel => Math.round((channel + m) * 255));
+}
+
+function drawVideoFrame() {
+  const targetWidth = 240, targetHeight = 160, sourceWidth = video.videoWidth || 640, sourceHeight = video.videoHeight || 480;
+  const targetRatio = targetWidth / targetHeight, sourceRatio = sourceWidth / sourceHeight;
+  let sx = 0, sy = 0, sw = sourceWidth, sh = sourceHeight;
+  if (sourceRatio > targetRatio) { sw = sourceHeight * targetRatio; sx = (sourceWidth - sw) / 2; }
+  else { sh = sourceWidth / targetRatio; sy = (sourceHeight - sh) / 2; }
+  captureCtx.clearRect(0, 0, targetWidth, targetHeight);
+  captureCtx.save(); captureCtx.scale(-1, 1); captureCtx.drawImage(video, sx, sy, sw, sh, -targetWidth, 0, targetWidth, targetHeight); captureCtx.restore();
+}
+
+function colorName(h: number, saturation: number) {
+  if (saturation < .12) return 'neutral';
+  if (h < 18 || h >= 345) return 'red'; if (h < 45) return 'orange'; if (h < 70) return 'yellow';
+  if (h < 165) return 'green'; if (h < 195) return 'cyan'; if (h < 255) return 'blue'; if (h < 295) return 'purple'; return 'pink';
+}
+
+function sampleColorAt(x: number, y: number) {
+  if (!cameraStream || video.readyState < 2) { setFeedPrompt('Start the camera and wait for the live view'); return; }
+  drawVideoFrame();
+  const radius = 7, left = Math.max(0, x - radius), top = Math.max(0, y - radius), width = Math.min(radius * 2 + 1, 240 - left), height = Math.min(radius * 2 + 1, 160 - top);
+  const data = captureCtx.getImageData(left, top, width, height).data;
+  const pixels: Array<{ r: number; g: number; b: number; h: number; s: number; v: number }> = [];
+  for (let p = 0; p < data.length; p += 4) { const hsv = rgbToHsv(data[p], data[p + 1], data[p + 2]); pixels.push({ r: data[p], g: data[p + 1], b: data[p + 2], ...hsv }); }
+  const colorful = pixels.filter(pixel => pixel.s > .18 && pixel.v > .06);
+  let red: number, green: number, blue: number;
+  if (colorful.length > pixels.length * .2) {
+    let sin = 0, cos = 0, saturation = 0, value = 0, weight = 0;
+    for (const pixel of colorful) { const w = pixel.s * pixel.s; sin += Math.sin(pixel.h * Math.PI / 180) * w; cos += Math.cos(pixel.h * Math.PI / 180) * w; saturation += pixel.s * w; value += pixel.v * w; weight += w; }
+    const hue = (Math.atan2(sin, cos) * 180 / Math.PI + 360) % 360; [red, green, blue] = hsvToRgb(hue, saturation / weight, value / weight);
+  } else {
+    const channels = [pixels.map(p => p.r), pixels.map(p => p.g), pixels.map(p => p.b)]; channels.forEach(channel => channel.sort((a, b) => a - b));
+    [red, green, blue] = channels.map(channel => channel[Math.floor(channel.length / 2)]);
+  }
+  setSelectedColor(red, green, blue);
+  const selected = rgbToHsv(red, green, blue); setFeedPrompt(`${colorName(selected.h, selected.s).toUpperCase()} sampled—lime overlay is the isolated phone`);
+  cameraFeed.classList.remove('sampled'); void cameraFeed.offsetWidth; cameraFeed.classList.add('sampled');
+  setTimeout(() => cameraFeed.classList.remove('sampled'), 700);
+}
+
 cameraBtn.addEventListener('click', async () => {
   if (cameraStream) {
     cameraStream.getTracks().forEach(t => t.stop()); cameraStream = null; cameraBtn.textContent = 'Start camera'; freezeBtn.disabled = true;
@@ -252,7 +310,7 @@ cameraBtn.addEventListener('click', async () => {
   try {
     cameraStream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480, facingMode: 'user' }, audio: false });
     video.srcObject = cameraStream; cameraBtn.textContent = 'Stop camera'; freezeBtn.disabled = false; cameraFrozen = false;
-    document.querySelector('#cameraState')!.textContent = 'LIVE'; setFeedPrompt('Click “Pick from video,” then click your color');
+    document.querySelector('#cameraState')!.textContent = 'LIVE'; setFeedPrompt('Hold the phone in the target, then press “Sample center”');
   } catch { cameraBtn.textContent = 'Camera blocked — try again'; setFeedPrompt('Allow camera access, then try again'); }
 });
 freezeBtn.addEventListener('click', () => {
@@ -270,22 +328,14 @@ detectMode.addEventListener('change', () => { resetColorTracking(); setFeedPromp
 tolerance.addEventListener('input', () => { document.querySelector('#toleranceValue')!.textContent = tolerance.value; resetColorTracking(); });
 pickColorBtn.addEventListener('click', () => {
   if (!cameraStream) { setFeedPrompt('Start the camera first'); return; }
-  pickingColor = !pickingColor; cameraFeed.classList.toggle('sampling', pickingColor); pickColorBtn.classList.toggle('active', pickingColor);
-  pickColorBtn.innerHTML = pickingColor ? '<span>⌖</span> Click the video…' : '<span>⌖</span> Pick from video';
-  setFeedPrompt(pickingColor ? `Click the ${detectMode.value === 'object' ? 'object' : 'backdrop'} color you want` : 'Live outline updating');
+  sampleColorAt(120, 80);
 });
 cameraFeed.addEventListener('click', event => {
-  if (!pickingColor || !cameraStream || video.readyState < 2) return;
+  if (!cameraStream || video.readyState < 2) return;
   const rect = cameraFeed.getBoundingClientRect();
   const x = Math.max(0, Math.min(239, Math.floor((event.clientX - rect.left) / rect.width * 240)));
   const y = Math.max(0, Math.min(159, Math.floor((event.clientY - rect.top) / rect.height * 160)));
-  captureCtx.save(); captureCtx.scale(-1, 1); captureCtx.drawImage(video, -240, 0, 240, 160); captureCtx.restore();
-  const sample = captureCtx.getImageData(Math.max(0, x - 3), Math.max(0, y - 3), Math.min(7, 240 - Math.max(0, x - 3)), Math.min(7, 160 - Math.max(0, y - 3))).data;
-  const values: number[][] = [[], [], []];
-  for (let p = 0; p < sample.length; p += 4) { values[0].push(sample[p]); values[1].push(sample[p + 1]); values[2].push(sample[p + 2]); }
-  values.forEach(channel => channel.sort((a, b) => a - b));
-  setSelectedColor(values[0][Math.floor(values[0].length / 2)], values[1][Math.floor(values[1].length / 2)], values[2][Math.floor(values[2].length / 2)]);
-  pickingColor = false; cameraFeed.classList.remove('sampling'); pickColorBtn.classList.remove('active'); pickColorBtn.innerHTML = '<span>⌖</span> Pick from video'; setFeedPrompt('Color sampled—adjust tolerance if needed');
+  sampleColorAt(x, y);
 });
 
 function keepLargestComponent(mask: Uint8Array) {
@@ -306,6 +356,30 @@ function keepLargestComponent(mask: Uint8Array) {
   return output;
 }
 
+function fillSilhouetteHoles(mask: Uint8Array) {
+  const outside = new Uint8Array(sim.size), queue = new Int32Array(sim.size); let head = 0, tail = 0;
+  const add = (i: number) => { if (i >= 0 && i < sim.size && !mask[i] && !outside[i]) { outside[i] = 1; queue[tail++] = i; } };
+  for (let x = 0; x < sim.width; x++) { add(x); add(x + (sim.height - 1) * sim.width); }
+  for (let y = 0; y < sim.height; y++) { add(y * sim.width); add(sim.width - 1 + y * sim.width); }
+  while (head < tail) {
+    const i = queue[head++], x = i % sim.width;
+    if (x > 0) add(i - 1); if (x < sim.width - 1) add(i + 1); add(i - sim.width); add(i + sim.width);
+  }
+  const filled = mask.slice(); for (let i = 0; i < sim.size; i++) if (!mask[i] && !outside[i]) filled[i] = 1;
+  return filled;
+}
+
+function matchesSelectedColor(r: number, g: number, b: number, range: number, sample: { h: number; s: number; v: number }) {
+  if (sample.s > .18) {
+    const pixel = rgbToHsv(r, g, b), rawHueGap = Math.abs(pixel.h - sample.h), hueGap = Math.min(rawHueGap, 360 - rawHueGap);
+    const hueLimit = 4 + range * .31;
+    const saturationFloor = Math.max(.1, sample.s * .24);
+    return hueGap <= hueLimit && pixel.s >= saturationFloor && pixel.v > .035;
+  }
+  const distance = Math.sqrt(.3 * (r - selectedColor.r) ** 2 + .59 * (g - selectedColor.g) ** 2 + .11 * (b - selectedColor.b) ** 2);
+  return distance <= range;
+}
+
 function updateMaskQuality(mask: Uint8Array) {
   let count = 0, edge = 0;
   for (let y = 2; y < sim.height - 2; y++) for (let x = 14; x < sim.width - 18; x++) if (mask[x + y * sim.width]) { count++; if (x < 19 || x > sim.width - 24 || y < 7 || y > sim.height - 8) edge++; }
@@ -322,13 +396,12 @@ function updateMaskQuality(mask: Uint8Array) {
 function updateCameraMask(now: number) {
   if (!cameraStream || cameraFrozen || video.readyState < 2 || now - lastMaskUpdate < 100) return;
   lastMaskUpdate = now; maskPreview.width = 240; maskPreview.height = 160;
-  captureCtx.save(); captureCtx.scale(-1, 1); captureCtx.drawImage(video, -240, 0, 240, 160); captureCtx.restore();
+  drawVideoFrame();
   const frame = captureCtx.getImageData(0, 0, 240, 160); const d = frame.data;
-  const raw = new Uint8Array(sim.size); const threshold = Number(tolerance.value); const selectingObject = detectMode.value === 'object';
+  const raw = new Uint8Array(sim.size); const threshold = Number(tolerance.value); const selectingObject = detectMode.value === 'object'; const sampleHsv = rgbToHsv(selectedColor.r, selectedColor.g, selectedColor.b);
   for (let y = 0; y < sim.height; y++) for (let x = 0; x < sim.width; x++) {
     const vy = Math.floor(y / sim.height * 160); const p = (x + vy * 240) * 4; const r = d[p], g = d[p + 1], b = d[p + 2];
-    const distance = Math.sqrt(.3 * (r - selectedColor.r) ** 2 + .59 * (g - selectedColor.g) ** 2 + .11 * (b - selectedColor.b) ** 2);
-    const foreground = selectingObject ? distance <= threshold : distance > threshold;
+    const colorMatch = matchesSelectedColor(r, g, b, threshold, sampleHsv); const foreground = selectingObject ? colorMatch : !colorMatch;
     if (foreground && x > 14 && x < sim.width - 18 && y > 3 && y < sim.height - 4) raw[x + y * sim.width] = 1;
   }
   const stable = new Uint8Array(sim.size);
@@ -338,7 +411,7 @@ function updateCameraMask(now: number) {
     let n = 0; for (let oy = -1; oy <= 1; oy++) for (let ox = -1; ox <= 1; ox++) n += stable[x + ox + (y + oy) * sim.width];
     smooth[x + y * sim.width] = n >= 4 ? 1 : 0;
   }
-  const clean = keepLargestComponent(smooth);
+  const clean = fillSilhouetteHoles(keepLargestComponent(smooth));
   sim.setMask(clean);
   updateMaskQuality(clean);
   const overlay = maskCtx.createImageData(240, 160);

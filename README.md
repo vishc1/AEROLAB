@@ -16,7 +16,8 @@ npm run dev
 - Momentum-exchange drag and lift estimates
 - Speed/vorticity field and advected tracer particles
 - Click-to-sample detection for any object or backdrop color
-- Live tolerance tuning, largest-object cleanup, temporal mask smoothing, and outline-quality diagnostics
+- Hue-aware matching that keeps glossy colored objects selected across shadows and reflections
+- Live tolerance tuning, largest-object cleanup, hole filling, temporal mask smoothing, and outline-quality diagnostics
 - Frozen-shape five-second test runs
 - Height-normalized local leaderboard and design feedback
 
