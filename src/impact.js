@@ -112,10 +112,22 @@ export function createImpactPanel(store, { mask, labelFor }) {
 
   renderBaseline();
 
+  const setBaseline = ({ cd, cl, name, canvas }) => {
+    baseline = { cd, cl: cl ?? 0, name, thumb: thumbnail(canvas || mask.canvas), at: Date.now() };
+    try {
+      localStorage.setItem(BASELINE_KEY, JSON.stringify(baseline));
+    } catch {
+      /* storage unavailable */
+    }
+    lastSignature = '';
+    renderBaseline();
+  };
+
   return {
     get baseline() {
       return baseline;
     },
+    setBaseline,
     tick() {
       const m = store.state.metrics;
       const live = m.boundaryCells > 0 && Number.isFinite(m.cd) && m.cd > 0;

@@ -36,6 +36,40 @@ function load() {
   }
 }
 
+/**
+ * Ask the AI coach (a serverless function backed by Claude) to explain this
+ * specific result. Silently keeps the rule-based text when the endpoint is
+ * missing, unconfigured or slow.
+ */
+async function askCoach(context, runId) {
+  if (!context) return;
+  const slot = document.getElementById('coach-ai');
+  if (!slot) return;
+  slot.hidden = false;
+  slot.dataset.state = 'loading';
+  slot.textContent = 'Asking the coach…';
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20000);
+    const response = await fetch('/api/coach', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(context),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!response.ok) throw new Error(`coach ${response.status}`);
+    const data = await response.json();
+    const current = document.getElementById('coach-ai');
+    if (!current || !data?.text) throw new Error('empty');
+    current.dataset.state = 'done';
+    current.innerHTML = `<b>AI coach</b> ${escapeHtml(data.text)}`;
+  } catch {
+    const current = document.getElementById('coach-ai');
+    if (current) current.hidden = true;
+  }
+}
+
 export function createLeaderboard() {
   const board = document.getElementById('leaderboard');
   const coach = document.getElementById('coach-card');
@@ -61,12 +95,11 @@ export function createLeaderboard() {
 
   return {
     /** Record a finished 5-second test. Height normalisation is inherent: Cd is per reference length. */
-    record({ cd, cl, dim }) {
+    record({ cd, cl, dim, label, context }) {
       const score = efficiency(cd, cl);
       const insight = explain(cd, cl);
       const prior = load();
-      const fallback = `Prototype ${prior.length + 1}`;
-      const name = (window.prompt('Name this design for the leaderboard:', fallback) || '').trim() || fallback;
+      const name = `${label || 'Prototype'} #${prior.length + 1}`;
       const entry = {
         id: Date.now(),
         name,
@@ -82,7 +115,8 @@ export function createLeaderboard() {
         /* storage unavailable */
       }
       render();
-      coach.innerHTML = `<span class="coach-icon">✦</span><p class="eyebrow">Flow coach · latest run</p><div class="score-badge">${score.toFixed(0)}<small>/100</small></div><h3>${escapeHtml(name)}</h3><p>${insight}</p>`;
+      coach.innerHTML = `<span class="coach-icon">✦</span><p class="eyebrow">Flow coach · latest run</p><div class="score-badge">${score.toFixed(0)}<small>/100</small></div><h3>${escapeHtml(name)}</h3><p id="coach-text">${insight}</p><p class="coach-ai" id="coach-ai" hidden></p>`;
+      askCoach(context, entry.id);
     },
   };
 }

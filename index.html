@@ -176,6 +176,22 @@
                       <button id="mission-next" class="mission-hud-next" type="button" hidden>Next mission</button>
                     </div>
 
+                    <div id="share-banner" class="share-banner" hidden>
+                      <span class="eyebrow">Shared design</span>
+                      <b id="share-banner-text">Teardrop · Cd 0.412. Sculpt it, pin it, beat it.</b>
+                      <button id="share-banner-close" class="mission-hud-close" type="button" aria-label="Dismiss">×</button>
+                    </div>
+
+                    <div id="tour" class="tour" hidden>
+                      <span id="tour-step" class="tour-step">1 / 3</span>
+                      <strong id="tour-title">Drag on the tunnel to sculpt</strong>
+                      <p id="tour-text">Cream is solid. Shift-drag erases.</p>
+                      <div class="tour-actions">
+                        <button id="tour-skip" class="text-button" type="button">Skip</button>
+                        <button id="tour-next" class="tour-next" type="button">Next</button>
+                      </div>
+                    </div>
+
                     <div class="stage-bottom-left">
                       <div class="legend-block">
                         <span>FLOW SPEED</span>
@@ -420,6 +436,10 @@
                   </button>
                   <div class="benchmark-track"><i id="bench-progress"></i></div>
                   <div class="benchmark-note" id="bench-note">Average pressure integral over five seconds.</div>
+                  <div class="benchmark-actions">
+                    <button id="share-design" class="shape-chip" type="button">Share design</button>
+                    <button id="export-report" class="shape-chip" type="button">Export report</button>
+                  </div>
                 </div>
 
                 <div class="rail-compare">
@@ -554,6 +574,48 @@
                 <h3>Waiting for a run</h3>
                 <p>Run a five-second test and the coach explains what your shape did to the air.</p>
               </div>
+            </div>
+          </section>
+
+          <section class="classroom" aria-label="In the classroom">
+            <div class="workshop-head">
+              <div>
+                <span class="eyebrow">In the classroom</span>
+                <h2>Three lessons, <em>zero hardware.</em></h2>
+              </div>
+              <p class="notes-intro">
+                Runs on a Chromebook, needs no account or install, and camera frames never
+                leave the device. Each lesson is a 45-minute block built on the missions.
+              </p>
+            </div>
+            <div class="lesson-grid">
+              <article class="lesson">
+                <span class="lesson-tag">Grades 6–8 · Forces</span>
+                <h3>Why do cars have tails?</h3>
+                <p>Students streamline a cylinder, then cut a car's drag by a fifth, and read the result in litres of fuel. Ends with a class leaderboard.</p>
+                <ul>
+                  <li>Missions 01 and 03</li>
+                  <li>NGSS MS-PS2-2 · MS-ETS1-4</li>
+                </ul>
+              </article>
+              <article class="lesson">
+                <span class="lesson-tag">Grades 9–12 · Fluids</span>
+                <h3>What holds up a wing?</h3>
+                <p>From a flat plate to a lifting body. Students explain lift as deflected air, then chase lift-to-drag like an aircraft designer.</p>
+                <ul>
+                  <li>Mission 02 · Card preset · Vorticity view</li>
+                  <li>NGSS HS-PS2-1 · HS-ETS1-3</li>
+                </ul>
+              </article>
+              <article class="lesson">
+                <span class="lesson-tag">Grades 9–12 · Modelling</span>
+                <h3>Honey, air and the Reynolds number</h3>
+                <p>Same cylinder, different fluid. Students watch the vortex street vanish as viscosity rises, then test a real object from their desk.</p>
+                <ul>
+                  <li>Missions 04 and 05</li>
+                  <li>NGSS HS-PS2-1 · Science practices 2, 4</li>
+                </ul>
+              </article>
             </div>
           </section>
 

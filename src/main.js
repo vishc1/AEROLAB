@@ -12,6 +12,10 @@ import { CameraTracker } from './camera.js';
 import { createLeaderboard } from './leaderboard.js';
 import { createMissions } from './missions.js';
 import { createImpactPanel } from './impact.js';
+import { createShare } from './share.js';
+import { createReport } from './report.js';
+import { createTour } from './tour.js';
+import { roadImpact } from './impact.js';
 
 const store = createStore();
 
@@ -39,6 +43,21 @@ let modelImporter = null;
 let modelImporterLoading = null;
 let missions = null;
 let impact = null;
+let share = null;
+let report = null;
+let captureRequests = [];
+
+/** Resolves with a PNG data URL of the next rendered tunnel frame. */
+function captureFrame() {
+  return new Promise((resolve) => captureRequests.push(resolve));
+}
+
+function labelFor(s) {
+  if (s.input === 'camera') return 'Camera shape';
+  if (s.input === 'model') return 'Blender model';
+  if (s.preset === 'custom') return 'Custom shape';
+  return s.preset.charAt(0).toUpperCase() + s.preset.slice(1);
+}
 
 const EMPTY_BENCHMARK = { running: false, done: false, progress: 0, cd: 0, cl: 0 };
 
@@ -291,17 +310,31 @@ function init() {
     selectPreset,
     syncStatic: () => ui?.syncStatic(),
   });
-  impact = createImpactPanel(store, {
+  impact = createImpactPanel(store, { mask, labelFor });
+  share = createShare(store, {
     mask,
-    labelFor: (s) =>
-      s.input === 'camera'
-        ? 'Camera shape'
-        : s.input === 'model'
-          ? 'Blender model'
-          : s.preset === 'custom'
-            ? 'Custom shape'
-            : s.preset.charAt(0).toUpperCase() + s.preset.slice(1),
+    labelFor,
+    setBaseline: (b) => impact.setBaseline(b),
+    applyShared: (sharedCanvas) => {
+      if (store.state.input !== 'draw') setInput('draw');
+      store.patch({ preset: 'custom', tool: 'draw' });
+      mask.clear();
+      mask.ctx.globalCompositeOperation = 'source-over';
+      mask.ctx.imageSmoothingEnabled = true;
+      mask.ctx.drawImage(sharedCanvas, 0, 0, mask.width, mask.height);
+      mask.markDirty();
+      mask.upload();
+      clearFlow();
+      ui?.syncStatic();
+    },
   });
+  report = createReport(store, {
+    captureFrame,
+    labelFor,
+    missionsDone: () => missions.done.length,
+    baseline: () => impact.baseline,
+  });
+  createTour();
 
   const resizeObserver = new ResizeObserver(resizeCanvas);
   resizeObserver.observe(stage);
@@ -349,7 +382,25 @@ function init() {
     get impact() {
       return impact;
     },
+    get share() {
+      return share;
+    },
+    get report() {
+      return report;
+    },
+    captureFrame,
   };
+
+  // A shared design in the URL replaces the default airfoil.
+  const loadShared = () => {
+    try {
+      share.loadFromHash();
+    } catch (error) {
+      console.warn('Could not load shared design', error);
+    }
+  };
+  loadShared();
+  window.addEventListener('hashchange', loadShared);
 
   let last = performance.now();
   let frameMs = 16.7;
@@ -390,6 +441,10 @@ function init() {
       }
       sim3d.resize();
       sim3d.render(mask.canvas);
+      if (captureRequests.length) {
+        const url = document.getElementById('gl3d-canvas').toDataURL('image/png');
+        captureRequests.splice(0).forEach((resolve) => resolve(url));
+      }
       if (now - lastMetric > 60) {
         lastMetric = now;
         const re = computeRe(s.windSpeed, s.viscosity);
@@ -419,6 +474,10 @@ function init() {
       telemetry.poll(fluid, store);
       renderer.vorticity = s.vorticity;
       renderer.render(fluid, particles, params);
+      if (captureRequests.length) {
+        const url = canvas.toDataURL('image/png');
+        captureRequests.splice(0).forEach((resolve) => resolve(url));
+      }
     }
 
     frameMs += (rawSeconds * 1000 - frameMs) * 0.08;
@@ -438,7 +497,31 @@ function init() {
           benchmark: { running: false, done: true, progress: 1, cd, cl },
         });
         benchmark = null;
-        leaderboard.record({ cd, cl, dim: s.dim.toUpperCase() });
+        const ld = Math.abs(cd) > 0.001 ? cl / cd : 0;
+        const thumbCanvas = document.createElement('canvas');
+        thumbCanvas.width = 264;
+        thumbCanvas.height = 132;
+        const tctx = thumbCanvas.getContext('2d');
+        tctx.fillStyle = '#07100f';
+        tctx.fillRect(0, 0, 264, 132);
+        tctx.drawImage(mask.canvas, 0, 0, 264, 132);
+        leaderboard.record({
+          cd,
+          cl,
+          dim: s.dim.toUpperCase(),
+          label: labelFor(s),
+          context: {
+            metrics: { cd, cl, ld, re: s.metrics.re, regime: s.metrics.regime, road: roadImpact(cd) },
+            context: {
+              label: labelFor(s),
+              dim: s.dim.toUpperCase(),
+              input: s.input,
+              mission: missions.active?.mission.title || null,
+              baseline: impact.baseline ? { name: impact.baseline.name, cd: impact.baseline.cd } : null,
+            },
+            thumb: thumbCanvas.toDataURL('image/png'),
+          },
+        });
         missions.onTestComplete({ input: s.input, cd, cl });
       } else {
         store.patch({

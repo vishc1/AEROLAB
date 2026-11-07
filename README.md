@@ -51,6 +51,10 @@ npm run preview
 - Five guided missions with a settled baseline, live progress and a lesson on completion
 - Road panel: drag coefficient → kW, L/100 km and g CO₂/km for a car at 100 km/h
 - Pin any shape as a baseline and read the live drag change and litres saved per 10,000 km
+- Share a design as a link: the silhouette is run-length encoded into the URL (about 200 characters), no upload, and the recipient gets it pinned as the baseline to beat
+- Export a PNG report card with the live tunnel frame, coefficients, road numbers and mission progress
+- AI flow coach: after each five-second test a serverless function asks Claude to explain what the air did to this shape and suggest one change; the rule-based coach stays as the fallback
+- First-visit tour and a classroom section with three lessons mapped to NGSS standards
 - WebGL2 fractional-step fluid solver with 65,536 live GPU tracers
 - Red/blue vorticity view, pressure telemetry and finite drag/lift readings
 - Mouse drawing plus airfoil, cylinder, plate, card and car presets
@@ -92,6 +96,11 @@ src/
   leaderboard.js   Efficiency score, localStorage board, flow coach
   missions.js      Guided challenges: baseline settle, live goal tracking, lessons
   impact.js        Road-speed fuel/CO₂ translation and pinned-baseline compare
+  share.js         Silhouette ↔ URL hash codec and the shared-design banner
+  report.js        PNG report card composed from the live frame and telemetry
+  tour.js          Three-step first-visit tour
+api/
+  coach.js         Vercel function: Claude explains a test result (needs ANTHROPIC_API_KEY)
   gl/
     utils.js       WebGL2 context, programs, FBOs, fullscreen quad
     shaders.js     GLSL ES 3.00 solver, background and particle shaders
@@ -157,6 +166,13 @@ A 256 × 256 RGBA32F texture stores 65,536 tracers. A fragment pass advances eac
 with midpoint RK2, respawns runaways at the inlet, and the render pass expands
 each tracer into a velocity-oriented streak. Color maps normalized speed from
 deep blue → cyan → cream, with muted violet in recirculation.
+
+## AI coach setup
+
+The coach endpoint lives at `api/coach.js` and runs as a Vercel function. Set
+`ANTHROPIC_API_KEY` in the Vercel project (Settings → Environment Variables)
+and redeploy. Without the key the endpoint answers 503 and the browser keeps
+the built-in rule-based coach, so the app never depends on it.
 
 ## Verification scripts
 
