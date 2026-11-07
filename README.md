@@ -1,8 +1,13 @@
 # AEROLAB
 
-A real-time, browser-based 2D wind tunnel. Draw a silhouette, choose a preset,
-and watch a GPU Navier–Stokes solver reveal the wake, recirculation and pressure
-loads. No meshes, no server, no simulation dependencies.
+A real-time, browser-based wind tunnel in 2D and 3D. Draw a silhouette (or hold
+an object up to your webcam), and watch a GPU Navier–Stokes solver — or a 3D
+lattice-Boltzmann solver — reveal the wake, vortices and pressure loads. No
+meshes, no server, no simulation dependencies.
+
+AEROLAB now includes everything from the earlier Slipstream prototype: camera
+shape capture, vorticity view, Card/Car presets, the 5-second test, a local
+leaderboard and the flow coach.
 
 ![AEROLAB](scripts/new-viewport.png)
 
@@ -27,7 +32,11 @@ npm run preview
 | Drag on the test section | Sculpt solid geometry |
 | `Shift` + drag / right-drag | Erase |
 | `Space` | Pause / resume |
-| Quick shape pills | Airfoil, cylinder, flat plate |
+| Quick shape pills | Airfoil, cylinder, plate, card, car |
+| 2D / 3D | Switch between the GPU 2D solver and the D3Q19 3D solver (drag to orbit, scroll to zoom, double-click to reset) |
+| Wing / Extrude / Revolve | How the 2D silhouette is lifted into 3D |
+| Camera tab | Webcam colour-key silhouette with smoothing, hole fill and quality diagnostics; freeze before testing |
+| Vorticity | Red/blue signed vorticity overlay (2D) |
 | Bottom sliders | Wind speed, viscosity, tracer density, brush radius, solver grid |
 | Run 5-second test | Time-average `Cd` and `Cl` from the live force signal |
 
@@ -35,6 +44,9 @@ npm run preview
 
 ```
 src/
+  sim3d.js         D3Q19 BGK lattice-Boltzmann solver + orbit-camera renderer
+  camera.js        Webcam silhouette tracker
+  leaderboard.js   Efficiency score, localStorage board, flow coach
   gl/
     utils.js       WebGL2 context, programs, FBOs, fullscreen quad
     shaders.js     GLSL ES 3.00 solver, background and particle shaders
