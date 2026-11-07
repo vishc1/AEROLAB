@@ -49,44 +49,11 @@ const state = await page.evaluate(() => {
   };
 });
 console.log(JSON.stringify({ logs: [...new Set(logs)], state }, null, 2));
-
-await page.screenshot({ path: 'scripts/new-viewport.png', fullPage: false });
-await page.screenshot({ path: 'scripts/new-full.png', fullPage: true });
-
-// benchmark
-await page.click('#run-benchmark');
-await new Promise((resolve) => setTimeout(resolve, 6200));
-const bench = await page.evaluate(() => ({
-  benchmark: window.__AEROLAB__.store.state.benchmark,
-  label: document.getElementById('bench-label')?.textContent,
-  note: document.getElementById('bench-note')?.textContent,
-}));
-console.log(JSON.stringify({ bench }, null, 2));
-
-// geometry interaction
-await page.click('[data-preset="cylinder"]');
-await new Promise((resolve) => setTimeout(resolve, 1500));
-const stage = await page.$('#stage');
-const box = await stage.boundingBox();
-await page.mouse.move(box.x + box.width * 0.22, box.y + box.height * 0.42);
-await page.mouse.down();
-await page.mouse.move(box.x + box.width * 0.28, box.y + box.height * 0.58, { steps: 10 });
-await page.mouse.up();
-await page.evaluate(() => window.__AEROLAB__.setResolution(256));
-await new Promise((resolve) => setTimeout(resolve, 5000));
-
-const interaction = await page.evaluate(() => {
-  const s = window.__AEROLAB__.store.state;
-  return {
-    preset: s.preset,
-    resolution: s.resolution,
-    fluid: [window.__AEROLAB__.fluid.width, window.__AEROLAB__.fluid.height],
-    fps: s.fps,
-    metrics: s.metrics,
-    benchmark: s.benchmark,
-  };
-});
-console.log(JSON.stringify({ interaction, logs: [...new Set(logs)] }, null, 2));
-await page.screenshot({ path: 'scripts/new-cylinder.png', fullPage: false });
-
+if (!state.hasApp || state.errorVisible) throw new Error(`App failed to initialize: ${state.errorText}`);
+if (!Number.isFinite(state.state.metrics.cd) || !Number.isFinite(state.state.metrics.cl)) {
+  throw new Error('Drag or lift telemetry is not finite');
+}
+if (state.state.fps < 24 || state.glInfo.history < 10) {
+  throw new Error(`Solver did not reach a healthy live state: ${JSON.stringify(state.glInfo)}`);
+}
 await browser.close();

@@ -32,10 +32,13 @@ npm run preview
 - Mouse drawing plus airfoil, cylinder, plate, card and car presets
 - 2D wind tunnel and interactive 3D D3Q19 lattice-Boltzmann mode
 - Camera starts automatically when Camera mode is selected
+- Google MediaPipe Hand Landmarker mode turns 21 tracked hand landmarks into a stable tunnel silhouette
 - Click-to-sample color isolation using hue, saturation and chromaticity, tuned to reject skin beside a red object
 - Largest-object cleanup, hole filling, temporal smoothing and outline-quality diagnostics
 - Three-frame presence confirmation and automatic obstacle/wake clearing when the object leaves
 - Vertical tracking: moving the real object up or down moves its tunnel silhouette too
+- Blender glTF (`.glb`) upload with mesh statistics and front, side and top wind projections
+- Interactive 3D model inspection plus phone AR placement through `<model-viewer>`
 - Frozen-shape five-second tests, local leaderboard and design feedback
 
 ## Controls
@@ -59,6 +62,7 @@ npm run preview
 src/
   sim3d.js         D3Q19 BGK lattice-Boltzmann solver + orbit-camera renderer
   camera.js        Webcam silhouette tracker
+  model-import.js  Blender GLB preview, silhouette projection and WebXR/AR handoff
   leaderboard.js   Efficiency score, localStorage board, flow coach
   gl/
     utils.js       WebGL2 context, programs, FBOs, fullscreen quad

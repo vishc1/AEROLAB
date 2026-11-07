@@ -33,6 +33,8 @@ let benchmark = null;
 let sim3d = null;
 let camera = null;
 let leaderboard = null;
+let modelImporter = null;
+let modelImporterLoading = null;
 
 const EMPTY_BENCHMARK = { running: false, done: false, progress: 0, cd: 0, cl: 0 };
 
@@ -95,8 +97,53 @@ function setInput(input) {
   cancelBenchmark();
   store.patch({ input });
   ui?.syncStatic();
-  if (input === 'camera') camera.startCamera();
+  if (input === 'camera') {
+    mask.clear();
+    mask.upload();
+    clearFlow();
+    camera.startCamera();
+  }
   else if (camera.active || camera.starting) camera.stopCamera();
+  if (input === 'model') {
+    if (!modelImporter?.modelScene) {
+      mask.clear();
+      mask.upload();
+      clearFlow();
+    }
+    initModelImporter();
+  }
+}
+
+function initModelImporter() {
+  if (modelImporter) return Promise.resolve(modelImporter);
+  if (modelImporterLoading) return modelImporterLoading;
+  const status = document.getElementById('model-status');
+  status.dataset.state = 'loading';
+  status.querySelector('span').textContent = 'Loading the 3D model lab…';
+  modelImporterLoading = import('./model-import.js')
+    .then(({ ModelImporter }) => {
+      modelImporter = new ModelImporter({
+        mask,
+        onMask: () => {
+          mask.upload();
+          if (store.state.preset !== 'custom') store.patch({ preset: 'custom' });
+          rebuild3d();
+          ui?.syncStatic();
+        },
+        onFlowReset: clearFlow,
+      });
+      return modelImporter;
+    })
+    .catch((error) => {
+      console.error(error);
+      status.dataset.state = 'error';
+      status.querySelector('span').textContent = 'The 3D model lab could not start on this browser';
+      return null;
+    })
+    .finally(() => {
+      modelImporterLoading = null;
+    });
+  return modelImporterLoading;
 }
 
 function setBuild(build) {
@@ -110,6 +157,7 @@ function setBuild(build) {
 function startBenchmark() {
   if (benchmark) return;
   if (store.state.input === 'camera' && !camera.prepareForTest()) return;
+  if (store.state.input === 'model' && !modelImporter?.prepareForTest()) return;
   benchmark = { start: performance.now(), samples: [] };
   store.patch({ benchmark: { ...EMPTY_BENCHMARK, running: true } });
 }
@@ -215,7 +263,6 @@ function init() {
     },
     onLost: clearFlow,
   });
-
   resizeCanvas();
   mask.bindInput(overlay, cursor, store);
 
@@ -266,6 +313,9 @@ function init() {
     },
     get camera() {
       return camera;
+    },
+    get modelImporter() {
+      return modelImporter;
     },
   };
 

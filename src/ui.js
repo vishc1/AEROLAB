@@ -103,16 +103,26 @@ export function createUI(store, actions) {
     hudParticles.textContent = (particleCount / 1000).toFixed(1);
     hudGrid.textContent = gridLabel(s.resolution);
     stageMode.textContent =
-      (s.input === 'camera' ? 'CAMERA SHAPE' : PRESET_META[s.preset]?.label ?? PRESET_META.custom.label) +
+      (s.input === 'camera'
+        ? 'LIVE CAMERA SHAPE'
+        : s.input === 'model'
+          ? 'BLENDER MODEL PROJECTION'
+          : PRESET_META[s.preset]?.label ?? PRESET_META.custom.label) +
       (s.dim === '3d' ? ' · 3D' : '');
     const is3d = s.dim === '3d';
     document.body.classList.toggle('is-3d', is3d);
     document.body.classList.toggle('is-camera', s.input === 'camera');
+    document.body.classList.toggle('is-model', s.input === 'model');
     $('gl3d-canvas').hidden = !is3d;
     $('build-chips').hidden = !is3d;
     $('camera-panel').hidden = s.input !== 'camera';
-    $('tool-tabs').hidden = s.input === 'camera';
-    $('model-note').textContent = is3d ? '3D D3Q19 LATTICE-BOLTZMANN' : '2D MODEL · CREAM = SOLID';
+    $('model-panel').hidden = s.input !== 'model';
+    $('tool-tabs').hidden = s.input !== 'draw';
+    $('model-note').textContent = is3d
+      ? '3D D3Q19 LATTICE-BOLTZMANN'
+      : s.input === 'model'
+        ? '2D PROJECTION FROM 3D MESH'
+        : '2D MODEL · CREAM = SOLID';
     $('vort-toggle').setAttribute('aria-pressed', String(s.vorticity));
     document.querySelectorAll('[data-dim]').forEach((b) => b.classList.toggle('is-active', b.dataset.dim === s.dim));
     document.querySelectorAll('[data-input]').forEach((b) => b.classList.toggle('is-active', b.dataset.input === s.input));

@@ -8,6 +8,13 @@ import { mapCameraYToTunnel } from './tracking.ts';
  */
 const VW = 240;
 const VH = 160;
+const HAND_CONNECTIONS = [
+  [0, 1], [1, 2], [2, 3], [3, 4],
+  [0, 5], [5, 6], [6, 7], [7, 8],
+  [5, 9], [9, 10], [10, 11], [11, 12],
+  [9, 13], [13, 14], [14, 15], [15, 16],
+  [13, 17], [17, 18], [18, 19], [19, 20], [17, 0],
+];
 
 function colorName(h, s) {
   if (s < 0.12) return 'neutral';
@@ -34,6 +41,7 @@ export class CameraTracker {
     this.preview = this.$('cam-mask');
     this.previewCtx = this.preview.getContext('2d');
     this.feed = this.$('cam-feed');
+    this.feedCtx = this.feed.getContext('2d');
     this.capture = document.createElement('canvas');
     this.capture.width = VW;
     this.capture.height = VH;
@@ -51,6 +59,9 @@ export class CameraTracker {
     this.objectTracked = false;
     this.trackedCoverage = 0;
     this.trackedTunnelCenterY = this.mask.height * 0.5;
+    this.handLandmarker = null;
+    this.handLoading = null;
+    this.handCanvas = document.createElement('canvas');
     this.bindEvents();
   }
 
@@ -126,9 +137,19 @@ export class CameraTracker {
     ctx.scale(-1, 1);
     ctx.drawImage(v, sx, sy, sw, sh, -VW, 0, VW, VH);
     ctx.restore();
+    if (this.feed.width !== VW || this.feed.height !== VH) {
+      this.feed.width = VW;
+      this.feed.height = VH;
+    }
+    this.feedCtx.clearRect(0, 0, VW, VH);
+    this.feedCtx.drawImage(this.capture, 0, 0);
   }
 
   sampleAt(x, y) {
+    if (this.$('cam-detect').value === 'hand') {
+      this.setPrompt('Hand mode uses Google MediaPipe — no color sample is needed');
+      return;
+    }
     if (!this.stream || this.video.readyState < 2) {
       this.setPrompt('Start the camera and wait for the live view');
       return;
@@ -199,6 +220,7 @@ export class CameraTracker {
       this.$('cam-state').textContent = 'SEARCHING';
       this.setPrompt('Hold an object in view, then click it (or press Sample center)');
       this.setStatus('warn', 'Pick the object colour');
+      if (this.$('cam-detect').value === 'hand') this.initHandTracking();
     } catch (error) {
       if (request !== this.cameraRequest) return;
       this.stream = null;
@@ -276,7 +298,7 @@ export class CameraTracker {
     });
     $('cam-detect').addEventListener('change', () => {
       this.resetTracking();
-      this.setPrompt($('cam-detect').value === 'object' ? 'Pick the object’s strongest colour' : 'Pick the clean backdrop colour');
+      this.syncDetectionMode();
     });
     $('cam-tol').addEventListener('input', () => {
       $('cam-tol-value').textContent = $('cam-tol').value;
@@ -293,6 +315,118 @@ export class CameraTracker {
       const y = Math.max(0, Math.min(VH - 1, Math.floor(((event.clientY - rect.top) / rect.height) * VH)));
       this.sampleAt(x, y);
     });
+    this.syncDetectionMode();
+  }
+
+  syncDetectionMode() {
+    const mode = this.$('cam-detect').value;
+    const handMode = mode === 'hand';
+    this.$('cam-color-tools').hidden = handMode;
+    this.$('cam-tolerance-row').hidden = handMode;
+    this.$('cam-center').disabled = handMode;
+    this.$('cam-ai-note').hidden = !handMode;
+    if (handMode) {
+      this.setPrompt('Loading Google MediaPipe hand tracking…');
+      this.initHandTracking();
+    } else {
+      this.setPrompt(mode === 'object' ? 'Pick the object’s strongest colour' : 'Pick the clean backdrop colour');
+      this.setStatus('warn', 'Pick a color in the live view');
+    }
+  }
+
+  async initHandTracking() {
+    if (this.handLandmarker) {
+      this.setPrompt('Show one open hand — MediaPipe will build its tunnel silhouette');
+      this.setStatus('good', 'MediaPipe ready · processed locally');
+      return this.handLandmarker;
+    }
+    if (this.handLoading) return this.handLoading;
+    this.setStatus('warn', 'Loading Google MediaPipe model…');
+    this.handLoading = (async () => {
+      try {
+        const { FilesetResolver, HandLandmarker } = await import('@mediapipe/tasks-vision');
+        const vision = await FilesetResolver.forVisionTasks(
+          'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.2/wasm',
+        );
+        const options = {
+          baseOptions: {
+            modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task',
+            delegate: 'GPU',
+          },
+          runningMode: 'VIDEO',
+          numHands: 1,
+          minHandDetectionConfidence: 0.55,
+          minHandPresenceConfidence: 0.5,
+          minTrackingConfidence: 0.5,
+        };
+        try {
+          this.handLandmarker = await HandLandmarker.createFromOptions(vision, options);
+        } catch {
+          options.baseOptions.delegate = 'CPU';
+          this.handLandmarker = await HandLandmarker.createFromOptions(vision, options);
+        }
+        this.setPrompt('Show one open hand — MediaPipe will build its tunnel silhouette');
+        this.setStatus('good', 'MediaPipe ready · processed locally');
+        return this.handLandmarker;
+      } catch (error) {
+        console.error(error);
+        this.setPrompt('MediaPipe could not load — use Object colour mode as the offline fallback');
+        this.setStatus('bad', 'Hand model unavailable');
+        return null;
+      } finally {
+        this.handLoading = null;
+      }
+    })();
+    return this.handLoading;
+  }
+
+  handMask(landmarks, W, H) {
+    const canvas = this.handCanvas;
+    if (canvas.width !== W || canvas.height !== H) {
+      canvas.width = W;
+      canvas.height = H;
+    }
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    context.clearRect(0, 0, W, H);
+    if (!landmarks?.length) return new Uint8Array(W * H);
+
+    const point = (index) => [landmarks[index].x * W, landmarks[index].y * H];
+    context.fillStyle = '#fff';
+    context.strokeStyle = '#fff';
+    context.lineCap = 'round';
+    context.lineJoin = 'round';
+
+    const palm = [0, 1, 5, 9, 13, 17];
+    context.beginPath();
+    palm.forEach((index, position) => {
+      const [x, y] = point(index);
+      if (position === 0) context.moveTo(x, y);
+      else context.lineTo(x, y);
+    });
+    context.closePath();
+    context.fill();
+
+    context.lineWidth = Math.max(5, H * 0.042);
+    for (const [a, b] of HAND_CONNECTIONS) {
+      const [ax, ay] = point(a);
+      const [bx, by] = point(b);
+      context.beginPath();
+      context.moveTo(ax, ay);
+      context.lineTo(bx, by);
+      context.stroke();
+    }
+    const radius = Math.max(3, H * 0.025);
+    for (let index = 0; index < landmarks.length; index += 1) {
+      const [x, y] = point(index);
+      context.beginPath();
+      context.arc(x, y, radius, 0, Math.PI * 2);
+      context.fill();
+    }
+
+    const pixels = context.getImageData(0, 0, W, H).data;
+    const raw = new Uint8Array(W * H);
+    for (let index = 0; index < raw.length; index += 1) raw[index] = pixels[index * 4 + 3] > 40 ? 1 : 0;
+    return raw;
   }
 
   matches(r, g, b, range, sample) {
@@ -311,21 +445,37 @@ export class CameraTracker {
 
     this.drawFrame();
     const d = this.captureCtx.getImageData(0, 0, VW, VH).data;
+    const mode = this.$('cam-detect').value;
     const threshold = Number(this.$('cam-tol').value);
-    const object = this.$('cam-detect').value === 'object';
+    const object = mode === 'object';
     const sampleHsv = rgbToHsv(this.selected.r, this.selected.g, this.selected.b);
     const padL = Math.round(W * 0.05);
     const padR = Math.round(W * 0.06);
     const padY = Math.round(H * 0.03);
 
-    const raw = new Uint8Array(size);
-    for (let y = 0; y < H; y += 1) {
-      const vy = Math.min(VH - 1, Math.floor((y / H) * VH));
-      for (let x = 0; x < W; x += 1) {
-        const vx = Math.min(VW - 1, Math.floor((x / W) * VW));
-        const p = (vx + vy * VW) * 4;
-        const match = this.matches(d[p], d[p + 1], d[p + 2], threshold, sampleHsv);
-        if ((object ? match : !match) && x > padL && x < W - padR && y > padY && y < H - padY) raw[x + y * W] = 1;
+    let raw;
+    if (mode === 'hand') {
+      if (!this.handLandmarker) {
+        this.initHandTracking();
+        return false;
+      }
+      let landmarks = null;
+      try {
+        landmarks = this.handLandmarker.detectForVideo(this.capture, now).landmarks?.[0] || null;
+      } catch (error) {
+        console.error(error);
+      }
+      raw = this.handMask(landmarks, W, H);
+    } else {
+      raw = new Uint8Array(size);
+      for (let y = 0; y < H; y += 1) {
+        const vy = Math.min(VH - 1, Math.floor((y / H) * VH));
+        for (let x = 0; x < W; x += 1) {
+          const vx = Math.min(VW - 1, Math.floor((x / W) * VW));
+          const p = (vx + vy * VW) * 4;
+          const match = this.matches(d[p], d[p + 1], d[p + 2], threshold, sampleHsv);
+          if ((object ? match : !match) && x > padL && x < W - padR && y > padY && y < H - padY) raw[x + y * W] = 1;
+        }
       }
     }
 
