@@ -33,7 +33,7 @@ app.innerHTML = `
           <canvas id="tunnel" aria-label="Interactive wind tunnel. Drag to draw a solid shape."></canvas>
           <div class="tunnel-label inlet">AIR IN <span>→</span></div>
           <div class="tunnel-label outlet">OPEN OUTLET</div>
-          <div class="scale"><span></span><label>FLOW SPEED</label><span></span></div>
+          <div class="scale"><b>↺ BLUE</b><label>VORTICITY / SWIRL</label><b>RED ↻</b></div>
           <div class="draw-hint" id="drawHint">DRAW A SHAPE · RIGHT-DRAG TO ERASE</div>
           <div class="camera-panel" id="cameraPanel" hidden>
             <div class="camera-head"><span><i></i> COLOR LAB</span><b id="cameraState">OFFLINE</b></div>
@@ -82,20 +82,23 @@ app.innerHTML = `
     </section>
     <section class="how-it-works">
       <p class="eyebrow">Under the hood</p><h2>Real fluid physics,<br><em>running in your browser.</em></h2>
-      <div class="steps"><article><span>01</span><h3>Make a silhouette</h3><p>Draw with your mouse or use a webcam against a clean backdrop.</p></article><article><span>02</span><h3>Move the air</h3><p>A D2Q9 lattice Boltzmann solver updates 23,040 fluid cells in real time.</p></article><article><span>03</span><h3>Measure the force</h3><p>Momentum exchange estimates drag and lift, then averages out the wobble.</p></article></div>
+      <div class="steps"><article><span>01</span><h3>Make a silhouette</h3><p>Draw with your mouse or use a webcam against a clean backdrop.</p></article><article><span>02</span><h3>Move the air</h3><p>A D2Q9 lattice Boltzmann solver updates 36,000 fluid cells in real time.</p></article><article><span>03</span><h3>Measure the force</h3><p>Momentum exchange estimates drag and lift, then averages out the wobble.</p></article></div>
     </section>
   </main>
   <dialog id="aboutDialog"><button id="closeAbout" aria-label="Close">×</button><p class="eyebrow">About the model</p><h2>A tiny, honest wind tunnel.</h2><p>Slipstream uses a two-dimensional lattice Boltzmann simulation. It captures useful relative behavior—bluff shapes create broad wakes, streamlined shapes reduce drag, and angled surfaces generate lift.</p><p>It does not predict full-scale, three-dimensional aerodynamics. Treat the numbers as a fair design game, not engineering certification.</p></dialog>
   <footer><span>SLIPSTREAM / EXPERIMENT 001</span><span>BUILD WITH YOUR HANDS. LEARN BY FEEL.</span></footer>
 `;
 
-const sim = new LBM(240, 96);
+const sim = new LBM(300, 120);
 const canvas = document.querySelector<HTMLCanvasElement>('#tunnel')!;
 const ctx = canvas.getContext('2d', { alpha: false })!;
 const fieldCanvas = document.createElement('canvas');
 fieldCanvas.width = sim.width; fieldCanvas.height = sim.height;
 const fieldCtx = fieldCanvas.getContext('2d')!;
 const image = fieldCtx.createImageData(sim.width, sim.height);
+const smokeCanvas = document.createElement('canvas');
+smokeCanvas.width = sim.width; smokeCanvas.height = sim.height;
+const smokeCtx = smokeCanvas.getContext('2d')!;
 const dragEl = document.querySelector('#dragValue')!;
 const liftEl = document.querySelector('#liftValue')!;
 const fpsEl = document.querySelector('#fps')!;
@@ -118,20 +121,24 @@ let captureSamples: { drag: number; lift: number }[] = [];
 let frameCount = 0;
 let fpsTime = performance.now();
 let lastTime = performance.now();
+let shownRecoveries = 0;
 
-for (let i = 0; i < 620; i++) particles.push(spawnParticle(Math.random() * sim.width));
+for (let i = 0; i < 360; i++) particles.push(spawnParticle(Math.random() * sim.width));
 
 function spawnParticle(x = 2): Particle {
-  const y = 4 + Math.random() * (sim.height - 8);
+  const lanes = Math.max(1, Math.floor((sim.height - 16) / 6));
+  const y = 8 + Math.floor(Math.random() * lanes) * 6 + (Math.random() - .5) * .7;
   return { x, y, px: x, py: y, age: Math.random() * 260 };
 }
 
 function colorMap(value: number, vorticity: number) {
-  const t = Math.max(0, Math.min(1, value / 0.15));
-  const r = Math.round(5 + 14 * t + Math.max(0, vorticity) * 1300);
-  const g = Math.round(17 + 110 * t + Math.abs(vorticity) * 500);
-  const b = Math.round(18 + 165 * t + Math.max(0, -vorticity) * 1600);
-  return [Math.min(255, r), Math.min(255, g), Math.min(255, b)];
+  const flow = Math.max(0, Math.min(1, value / .14));
+  const swirl = Math.max(-1, Math.min(1, vorticity / .009));
+  const intensity = Math.pow(Math.abs(swirl), .7);
+  let r = 4 + flow * 8, g = 12 + flow * 22, b = 18 + flow * 26;
+  if (swirl > 0) { r += 236 * intensity; g += 66 * intensity; b += 14 * intensity; }
+  else { r += 14 * intensity; g += 88 * intensity; b += 230 * intensity; }
+  return [Math.min(255, Math.round(r)), Math.min(255, Math.round(g)), Math.min(255, Math.round(b))];
 }
 
 function resizeCanvas() {
@@ -157,17 +164,18 @@ function renderField() {
   fieldCtx.putImageData(image, 0, 0);
   ctx.imageSmoothingEnabled = true;
   ctx.drawImage(fieldCanvas, 0, 0, canvas.width, canvas.height);
-  const sx = canvas.width / sim.width, sy = canvas.height / sim.height;
-  ctx.lineWidth = Math.max(1, window.devicePixelRatio || 1);
+  smokeCtx.globalCompositeOperation = 'destination-out'; smokeCtx.fillStyle = 'rgba(0,0,0,.045)'; smokeCtx.fillRect(0, 0, sim.width, sim.height);
+  smokeCtx.globalCompositeOperation = 'source-over'; smokeCtx.lineWidth = .52;
   for (const p of particles) {
     p.px = p.x; p.py = p.y;
     const [vx, vy] = sim.sampleVelocity(p.x, p.y);
     p.x += vx * 8.5; p.y += vy * 8.5; p.age++;
     const ix = Math.round(p.x), iy = Math.round(p.y);
     if (p.x >= sim.width - 2 || p.y < 2 || p.y > sim.height - 2 || p.age > 420 || sim.obstacle[ix + iy * sim.width]) Object.assign(p, spawnParticle());
-    ctx.strokeStyle = `rgba(207,255,232,${0.16 + (p.age % 30) / 150})`;
-    ctx.beginPath(); ctx.moveTo(p.px * sx, p.py * sy); ctx.lineTo(p.x * sx, p.y * sy); ctx.stroke();
+    smokeCtx.strokeStyle = `rgba(203,255,230,${.16 + (p.age % 30) / 115})`;
+    smokeCtx.beginPath(); smokeCtx.moveTo(p.px, p.py); smokeCtx.lineTo(p.x, p.y); smokeCtx.stroke();
   }
+  ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.globalAlpha = .92; ctx.drawImage(smokeCanvas, 0, 0, canvas.width, canvas.height); ctx.restore();
 }
 
 function drawChart() {
@@ -369,6 +377,23 @@ function fillSilhouetteHoles(mask: Uint8Array) {
   return filled;
 }
 
+function fitMaskToTunnel(mask: Uint8Array) {
+  let minX = sim.width, minY = sim.height, maxX = -1, maxY = -1;
+  for (let y = 0; y < sim.height; y++) for (let x = 0; x < sim.width; x++) if (mask[x + y * sim.width]) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
+  const fitted = new Uint8Array(sim.size);
+  if (maxX < minX || maxY < minY) return fitted;
+  const sourceWidth = maxX - minX + 1, sourceHeight = maxY - minY + 1;
+  const scale = Math.min((sim.height * .25) / sourceHeight, (sim.width * .22) / sourceWidth);
+  const targetWidth = Math.max(2, Math.round(sourceWidth * scale)), targetHeight = Math.max(2, Math.round(sourceHeight * scale));
+  const left = Math.round(sim.width * .27 - targetWidth / 2), top = Math.round(sim.height * .5 - targetHeight / 2);
+  for (let y = 0; y < targetHeight; y++) for (let x = 0; x < targetWidth; x++) {
+    const sourceX = minX + Math.min(sourceWidth - 1, Math.floor(x / targetWidth * sourceWidth));
+    const sourceY = minY + Math.min(sourceHeight - 1, Math.floor(y / targetHeight * sourceHeight));
+    if (mask[sourceX + sourceY * sim.width]) fitted[left + x + (top + y) * sim.width] = 1;
+  }
+  return fitted;
+}
+
 function matchesSelectedColor(r: number, g: number, b: number, range: number, sample: { h: number; s: number; v: number }) {
   if (sample.s > .18) {
     const pixel = rgbToHsv(r, g, b), rawHueGap = Math.abs(pixel.h - sample.h), hueGap = Math.min(rawHueGap, 360 - rawHueGap);
@@ -400,7 +425,8 @@ function updateCameraMask(now: number) {
   const frame = captureCtx.getImageData(0, 0, 240, 160); const d = frame.data;
   const raw = new Uint8Array(sim.size); const threshold = Number(tolerance.value); const selectingObject = detectMode.value === 'object'; const sampleHsv = rgbToHsv(selectedColor.r, selectedColor.g, selectedColor.b);
   for (let y = 0; y < sim.height; y++) for (let x = 0; x < sim.width; x++) {
-    const vy = Math.floor(y / sim.height * 160); const p = (x + vy * 240) * 4; const r = d[p], g = d[p + 1], b = d[p + 2];
+    const videoX = Math.min(239, Math.floor(x / sim.width * 240)), videoY = Math.min(159, Math.floor(y / sim.height * 160));
+    const p = (videoX + videoY * 240) * 4, r = d[p], g = d[p + 1], b = d[p + 2];
     const colorMatch = matchesSelectedColor(r, g, b, threshold, sampleHsv); const foreground = selectingObject ? colorMatch : !colorMatch;
     if (foreground && x > 14 && x < sim.width - 18 && y > 3 && y < sim.height - 4) raw[x + y * sim.width] = 1;
   }
@@ -412,17 +438,17 @@ function updateCameraMask(now: number) {
     smooth[x + y * sim.width] = n >= 4 ? 1 : 0;
   }
   const clean = fillSilhouetteHoles(keepLargestComponent(smooth));
-  sim.setMask(clean);
   updateMaskQuality(clean);
+  sim.setMask(fitMaskToTunnel(clean));
   const overlay = maskCtx.createImageData(240, 160);
   for (let py = 0; py < 160; py++) for (let px = 0; px < 240; px++) {
-    const gy = Math.min(sim.height - 1, Math.floor(py / 160 * sim.height)); const on = clean[px + gy * sim.width]; const p = (px + py * 240) * 4;
+    const gx = Math.min(sim.width - 1, Math.floor(px / 240 * sim.width)), gy = Math.min(sim.height - 1, Math.floor(py / 160 * sim.height)); const on = clean[gx + gy * sim.width]; const p = (px + py * 240) * 4;
     if (on) { overlay.data[p] = 239; overlay.data[p + 1] = 255; overlay.data[p + 2] = 87; overlay.data[p + 3] = 178; }
   }
   maskCtx.putImageData(overlay, 0, 0);
 }
 
-function efficiency(drag: number, lift: number) { return Math.max(0, Math.min(100, 100 - drag * 24 + Math.min(8, Math.abs(lift) * 3))); }
+function efficiency(drag: number, lift: number) { return Number.isFinite(drag) && Number.isFinite(lift) ? Math.max(0, Math.min(100, 100 - drag * 24 + Math.min(8, Math.abs(lift) * 3))) : 0; }
 function explain(drag: number, lift: number) {
   const wake = drag < .7 ? 'The narrow wake suggests the air is rejoining cleanly behind your shape.' : drag < 1.4 ? 'The wake is controlled, but the blunt regions are still shedding visible vortices.' : 'A broad, turbulent wake is carrying momentum away from the object.';
   const force = Math.abs(lift) < .12 ? 'It is nearly lift-neutral; tilt or curve a surface to redirect more air.' : lift > 0 ? 'The pressure imbalance is producing useful upward lift.' : 'The current angle is producing downforce; flip the tilt to reverse it.';
@@ -450,7 +476,7 @@ document.querySelector('#captureBtn')!.addEventListener('click', () => {
 
 function finishCapture() {
   captureStart = 0; document.querySelector<HTMLElement>('#countdown')!.hidden = true; document.querySelector<HTMLButtonElement>('#captureBtn')!.disabled = false;
-  const stable = captureSamples.slice(Math.floor(captureSamples.length * .35));
+  const stable = captureSamples.slice(Math.floor(captureSamples.length * .35)).filter(sample => Number.isFinite(sample.drag) && Number.isFinite(sample.lift));
   const drag = stable.reduce((n, s) => n + s.drag, 0) / Math.max(1, stable.length);
   const lift = stable.reduce((n, s) => n + s.lift, 0) / Math.max(1, stable.length);
   const score = efficiency(drag, lift); const insight = explain(drag, lift);
@@ -469,16 +495,18 @@ function loop(now: number) {
   updateCameraMask(now);
   sim.step(delta < 24 ? 2 : 1);
   renderField();
-  dragEl.textContent = sim.drag.toFixed(3);
-  liftEl.textContent = `${sim.lift >= 0 ? '+' : ''}${sim.lift.toFixed(3)}`;
-  history.push(sim.drag); if (history.length > 180) history.shift(); drawChart();
+  const safeDrag = Number.isFinite(sim.drag) ? sim.drag : 0, safeLift = Number.isFinite(sim.lift) ? sim.lift : 0;
+  dragEl.textContent = safeDrag.toFixed(3);
+  liftEl.textContent = `${safeLift >= 0 ? '+' : ''}${safeLift.toFixed(3)}`;
+  history.push(safeDrag); if (history.length > 180) history.shift(); drawChart();
   if (captureStart) {
-    const elapsed = (now - captureStart) / 1000; captureSamples.push({ drag: sim.drag, lift: sim.lift });
+    const elapsed = (now - captureStart) / 1000; captureSamples.push({ drag: safeDrag, lift: safeLift });
     document.querySelector('#countdown strong')!.textContent = Math.max(0, 5 - elapsed).toFixed(1);
     if (elapsed >= 5) finishCapture();
   }
   frameCount++;
-  if (now - fpsTime > 1000) { fpsEl.textContent = `${Math.round(frameCount * 1000 / (now - fpsTime))} FPS`; frameCount = 0; fpsTime = now; }
+  if (sim.recoveries > shownRecoveries) { shownRecoveries = sim.recoveries; fpsEl.textContent = 'FIELD RECOVERED'; }
+  else if (now - fpsTime > 1000) { fpsEl.textContent = `${Math.round(frameCount * 1000 / (now - fpsTime))} FPS`; frameCount = 0; fpsTime = now; }
   requestAnimationFrame(loop);
 }
 

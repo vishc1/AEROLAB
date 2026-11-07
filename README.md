@@ -11,13 +11,14 @@ npm run dev
 
 ## What is implemented
 
-- D2Q9 lattice Boltzmann solver at 240 × 96 cells
+- Stable D2Q9 lattice Boltzmann solver at 300 × 120 cells with automatic non-finite recovery
 - Mouse-drawn and preset obstacles
 - Momentum-exchange drag and lift estimates
-- Speed/vorticity field and advected tracer particles
+- Red/blue vorticity field and persistent advected smoke trails
 - Click-to-sample detection for any object or backdrop color
 - Hue-aware matching that keeps glossy colored objects selected across shadows and reflections
 - Live tolerance tuning, largest-object cleanup, hole filling, temporal mask smoothing, and outline-quality diagnostics
+- Camera silhouettes normalized to a safe 25% tunnel height with protected inlet/outlet padding
 - Frozen-shape five-second test runs
 - Height-normalized local leaderboard and design feedback
 
