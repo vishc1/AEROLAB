@@ -16,7 +16,8 @@ npm run dev
 - Momentum-exchange drag and lift estimates
 - Red/blue vorticity field and persistent advected smoke trails
 - Click-to-sample detection for any object or backdrop color
-- Hue-aware matching that keeps glossy colored objects selected across shadows and reflections
+- Camera starts automatically when Camera mode is selected
+- Hue, saturation, and chromaticity matching that keeps glossy objects selected while rejecting nearby colors such as skin beside red plastic
 - Live tolerance tuning, largest-object cleanup, hole filling, temporal mask smoothing, and outline-quality diagnostics
 - Camera silhouettes normalized to a safe 25% tunnel height with protected inlet/outlet padding
 - Frozen-shape five-second test runs
