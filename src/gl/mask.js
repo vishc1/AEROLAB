@@ -112,6 +112,35 @@ export class MaskEditor {
         ctx.rect(x, y0, bar, y1 - y0);
       }
       ctx.fill();
+    } else if (name === 'card') {
+      ctx.save();
+      ctx.translate(w * 0.3, h * 0.5);
+      ctx.rotate((-14 * Math.PI) / 180);
+      const cw = h * 0.3;
+      const ch = h * 0.016;
+      ctx.fillRect(-cw / 2, -ch / 2, cw, ch);
+      ctx.restore();
+    } else if (name === 'car') {
+      const cx = w * 0.3;
+      const cy = h * 0.5;
+      const u = h * 0.011;
+      ctx.beginPath();
+      ctx.moveTo(cx - 16 * u, cy + 3 * u);
+      ctx.lineTo(cx - 16 * u, cy - 2 * u);
+      ctx.quadraticCurveTo(cx - 14 * u, cy - 4.5 * u, cx - 9 * u, cy - 5 * u);
+      ctx.lineTo(cx - 5 * u, cy - 5.2 * u);
+      ctx.quadraticCurveTo(cx - 2.5 * u, cy - 10 * u, cx + 3 * u, cy - 10 * u);
+      ctx.lineTo(cx + 6 * u, cy - 10 * u);
+      ctx.quadraticCurveTo(cx + 10 * u, cy - 9 * u, cx + 12 * u, cy - 5 * u);
+      ctx.lineTo(cx + 16 * u, cy - 3.5 * u);
+      ctx.lineTo(cx + 16 * u, cy + 3 * u);
+      ctx.closePath();
+      ctx.fill();
+      for (const wx of [-9, 9]) {
+        ctx.beginPath();
+        ctx.arc(cx + wx * u, cy + 3.4 * u, 2.6 * u, 0, Math.PI * 2);
+        ctx.fill();
+      }
     } else if (name === 'airfoil') {
       this.drawAirfoil();
     } else if (name === 'empty') {
@@ -180,6 +209,24 @@ export class MaskEditor {
     gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
     gl.bindTexture(gl.TEXTURE_2D, null);
     this.dirty = false;
+  }
+
+  /**
+   * Replace the obstacle with a binary mask (top-down, `width * height`,
+   * non-zero = solid) — used by the camera silhouette pipeline.
+   */
+  setFromBinary(binary) {
+    const { width, height, ctx } = this;
+    const image = ctx.createImageData(width, height);
+    for (let i = 0; i < width * height; i += 1) {
+      const v = binary[i] ? 255 : 0;
+      image.data[i * 4] = v;
+      image.data[i * 4 + 1] = v;
+      image.data[i * 4 + 2] = v;
+      image.data[i * 4 + 3] = 255;
+    }
+    ctx.putImageData(image, 0, 0);
+    this.markDirty();
   }
 
   /** Called once per frame by the solver. */

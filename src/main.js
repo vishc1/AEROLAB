@@ -7,6 +7,9 @@ import { Renderer } from './gl/renderer.js';
 import { Telemetry } from './telemetry.js';
 import { createStore, computeRe, regimeFor, windToInlet } from './state.js';
 import { createUI } from './ui.js';
+import { Sim3D } from './sim3d.js';
+import { CameraTracker } from './camera.js';
+import { createLeaderboard } from './leaderboard.js';
 
 const store = createStore();
 
@@ -27,6 +30,9 @@ let telemetry = null;
 let quad = null;
 let gl = null;
 let benchmark = null;
+let sim3d = null;
+let camera = null;
+let leaderboard = null;
 
 const EMPTY_BENCHMARK = { running: false, done: false, progress: 0, cd: 0, cl: 0 };
 
@@ -62,8 +68,43 @@ function cancelBenchmark() {
   if (b.running || b.done) store.patch({ benchmark: { ...EMPTY_BENCHMARK } });
 }
 
+function rebuild3d() {
+  if (!sim3d || store.state.dim !== '3d') return;
+  sim3d.setObstacle(mask.getCpuMask(), mask.width, mask.height, store.state.build);
+}
+
+function setDim(dim) {
+  if (dim === store.state.dim) return;
+  cancelBenchmark();
+  store.patch({ dim });
+  if (dim === '3d') {
+    sim3d.resetFlow();
+    rebuild3d();
+  } else {
+    clearFlow();
+  }
+  resetMetrics();
+  ui?.syncStatic();
+}
+
+function setInput(input) {
+  if (input === store.state.input) return;
+  cancelBenchmark();
+  store.patch({ input });
+  ui?.syncStatic();
+}
+
+function setBuild(build) {
+  store.patch({ build });
+  cancelBenchmark();
+  rebuild3d();
+  resetMetrics();
+  ui?.syncStatic();
+}
+
 function startBenchmark() {
   if (benchmark) return;
+  if (store.state.input === 'camera' && !camera.prepareForTest()) return;
   benchmark = { start: performance.now(), samples: [] };
   store.patch({ benchmark: { ...EMPTY_BENCHMARK, running: true } });
 }
@@ -74,6 +115,10 @@ function clearFlow() {
   fluid.mask.getCpuMask();
   particles.seed();
   telemetry.reset();
+  if (store.state.dim === '3d') {
+    sim3d.resetFlow();
+    rebuild3d();
+  }
   resetMetrics();
 }
 
@@ -93,6 +138,7 @@ function resizeCanvas() {
     overlay.height = height;
   }
   renderer.resize();
+  sim3d?.resize();
 }
 
 function applyResolution(size) {
@@ -106,6 +152,7 @@ function applyResolution(size) {
   fluid.resetFlow(windToInlet(store.state.windSpeed));
   fluid.mask.getCpuMask();
   telemetry.reset();
+  rebuild3d();
   resetMetrics();
   ui?.syncStatic();
 }
@@ -149,6 +196,19 @@ function init() {
   renderer = new Renderer(gl, quad);
   telemetry = new Telemetry(gl);
   telemetry.configure(fluid.size);
+  sim3d = new Sim3D(document.getElementById('gl3d-canvas'));
+  leaderboard = createLeaderboard();
+  camera = new CameraTracker({
+    mask,
+    onMask: () => {
+      mask.upload();
+      if (store.state.preset !== 'custom') {
+        store.patch({ preset: 'custom' });
+        ui?.syncStatic();
+      }
+      rebuild3d();
+    },
+  });
 
   resizeCanvas();
   mask.bindInput(overlay, cursor, store);
@@ -159,6 +219,9 @@ function init() {
     clearMask,
     reset: resetSimulation,
     runBenchmark: startBenchmark,
+    setDim,
+    setInput,
+    setBuild,
   });
 
   const resizeObserver = new ResizeObserver(resizeCanvas);
@@ -191,6 +254,13 @@ function init() {
     setResolution: applyResolution,
     selectPreset,
     runBenchmark: startBenchmark,
+    setDim,
+    get sim3d() {
+      return sim3d;
+    },
+    get camera() {
+      return camera;
+    },
   };
 
   let last = performance.now();
@@ -198,6 +268,7 @@ function init() {
   let fps = 60;
   let lastUi = 0;
   let lastStat = 0;
+  let lastMetric = 0;
 
   const frame = (now) => {
     requestAnimationFrame(frame);
@@ -217,14 +288,50 @@ function init() {
       trailTime: 0.09,
     };
 
-    if (s.running) {
-      fluid.step(dt, params);
-      particles.update(dt, fluid);
-      telemetry.maybeRequest(fluid, s, now);
-    }
+    if (s.input === 'camera') camera.update(now);
 
-    telemetry.poll(fluid, store);
-    renderer.render(fluid, particles, params);
+    if (s.dim === '3d') {
+      if (s.running) {
+        const t0 = performance.now();
+        let n = 0;
+        do {
+          sim3d.step(s.windSpeed, s.viscosity);
+          n += 1;
+        } while (n < 4 && performance.now() - t0 < 9);
+        sim3d.advect();
+      }
+      sim3d.resize();
+      sim3d.render(mask.canvas);
+      if (now - lastMetric > 60) {
+        lastMetric = now;
+        const re = computeRe(s.windSpeed, s.viscosity);
+        const area = sim3d.refLength * sim3d.refLength;
+        const q = 0.5 * 1.2 * s.windSpeed * s.windSpeed * area;
+        store.patch({
+          metrics: {
+            cd: sim3d.cd,
+            cl: sim3d.cl,
+            fd: sim3d.cd * q,
+            fl: sim3d.cl * q,
+            re,
+            regime: regimeFor(re),
+            refLength: sim3d.refLength,
+            boundaryCells: sim3d.surface.length ? sim3d.links : 0,
+            iterations: 0,
+            history: sim3d.history.slice(),
+          },
+        });
+      }
+    } else {
+      if (s.running) {
+        fluid.step(dt, params);
+        particles.update(dt, fluid);
+        telemetry.maybeRequest(fluid, s, now);
+      }
+      telemetry.poll(fluid, store);
+      renderer.vorticity = s.vorticity;
+      renderer.render(fluid, particles, params);
+    }
 
     frameMs += (rawSeconds * 1000 - frameMs) * 0.08;
     fps += (1000 / Math.max(frameMs, 0.1) - fps) * 0.08;
@@ -243,6 +350,7 @@ function init() {
           benchmark: { running: false, done: true, progress: 1, cd, cl },
         });
         benchmark = null;
+        leaderboard.record({ cd, cl, dim: s.dim.toUpperCase() });
       } else {
         store.patch({
           benchmark: { running: true, done: false, progress, cd: 0, cl: 0 },

@@ -5,6 +5,7 @@ export class Renderer {
   constructor(gl, quad) {
     this.gl = gl;
     this.quad = quad;
+    this.vorticity = false;
     this.background = new Program(gl, FULLSCREEN_VERTEX, BACKGROUND_FRAGMENT, 'background');
   }
 
@@ -22,6 +23,7 @@ export class Renderer {
       .set('uCell', 1 / fluid.size)
       .set('uInlet', Math.max(0.03, params.inlet))
       .set('uTime', fluid.time)
+      .set('uVortView', this.vorticity ? 1 : 0)
       .setTexture('uVelocity', fluid.velocity.read.texture, 0)
       .setTexture('uObstacle', fluid.mask.texture, 1);
     this.quad.draw();

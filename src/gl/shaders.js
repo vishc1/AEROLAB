@@ -222,6 +222,7 @@ uniform vec2 uTexel;
 uniform float uInlet;
 uniform float uTime;
 uniform float uCell;
+uniform float uVortView;
 
 float hash21(vec2 p) {
   return fract(sin(dot(p, vec2(41.23, 289.11))) * 43758.5453);
@@ -250,6 +251,7 @@ void main() {
   float t = texture(uVelocity, uv + vec2(0.0, uTexel.y)).x;
   float curl = (r - l) / (2.0 * uCell) - (t - b) / (2.0 * uCell);
   float vort = clamp(abs(curl) * uCell / max(uInlet, 0.0001), 0.0, 1.0);
+  float signedVort = clamp(curl * uCell / max(uInlet, 0.0001) * 2.2, -1.0, 1.0);
 
   vec3 flowLow = vec3(0.020, 0.105, 0.180);
   vec3 flowHigh = vec3(0.045, 0.330, 0.545);
@@ -262,6 +264,11 @@ void main() {
 
   // Recirculation carries a quiet violet cast.
   col = mix(col, col * vec3(0.72, 0.66, 1.16), smoothstep(0.03, 0.55, vort) * 0.34);
+
+  // Vorticity view: counter-clockwise red, clockwise blue.
+  float swirl = pow(abs(signedVort), 0.7);
+  vec3 swirlCol = signedVort > 0.0 ? vec3(0.95, 0.30, 0.18) : vec3(0.10, 0.42, 0.98);
+  col = mix(col, col * 0.45 + swirlCol * swirl * 0.95, uVortView * smoothstep(0.02, 0.2, abs(signedVort)));
 
   // Very faint measurement grid, editorial rather than sci-fi.
   vec2 gridCoord = uv * vec2(32.0, 16.0);

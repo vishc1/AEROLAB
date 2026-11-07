@@ -11,6 +11,8 @@ const PRESET_META = {
   airfoil: { label: 'NACA 0012 · AoA 4.5°' },
   cylinder: { label: 'CYLINDER · VORTEX SHEDDING' },
   plate: { label: 'FLAT PLATE · NORMAL TO FLOW' },
+  card: { label: 'TILTED CARD · LIFT & STALL' },
+  car: { label: 'CAR PROFILE · BLUFF BODY' },
   custom: { label: 'CUSTOM BOUNDARY' },
 };
 
@@ -100,7 +102,21 @@ export function createUI(store, actions) {
     hudWind.textContent = s.windSpeed.toFixed(1);
     hudParticles.textContent = (particleCount / 1000).toFixed(1);
     hudGrid.textContent = gridLabel(s.resolution);
-    stageMode.textContent = PRESET_META[s.preset]?.label ?? PRESET_META.custom.label;
+    stageMode.textContent =
+      (s.input === 'camera' ? 'CAMERA SHAPE' : PRESET_META[s.preset]?.label ?? PRESET_META.custom.label) +
+      (s.dim === '3d' ? ' · 3D' : '');
+    const is3d = s.dim === '3d';
+    document.body.classList.toggle('is-3d', is3d);
+    document.body.classList.toggle('is-camera', s.input === 'camera');
+    $('gl3d-canvas').hidden = !is3d;
+    $('build-chips').hidden = !is3d;
+    $('camera-panel').hidden = s.input !== 'camera';
+    $('tool-tabs').hidden = s.input === 'camera';
+    $('model-note').textContent = is3d ? '3D D3Q19 LATTICE-BOLTZMANN' : '2D MODEL · CREAM = SOLID';
+    $('vort-toggle').setAttribute('aria-pressed', String(s.vorticity));
+    document.querySelectorAll('[data-dim]').forEach((b) => b.classList.toggle('is-active', b.dataset.dim === s.dim));
+    document.querySelectorAll('[data-input]').forEach((b) => b.classList.toggle('is-active', b.dataset.input === s.input));
+    document.querySelectorAll('[data-build]').forEach((b) => b.classList.toggle('is-active', b.dataset.build === s.build));
 
     windSlider.value = String(s.windSpeed);
     viscositySlider.value = String(s.viscosity);
@@ -341,6 +357,19 @@ export function createUI(store, actions) {
     });
   });
 
+  document.querySelectorAll('[data-dim]').forEach((b) => {
+    b.addEventListener('click', () => actions.setDim(b.dataset.dim));
+  });
+  document.querySelectorAll('[data-input]').forEach((b) => {
+    b.addEventListener('click', () => actions.setInput(b.dataset.input));
+  });
+  document.querySelectorAll('[data-build]').forEach((b) => {
+    b.addEventListener('click', () => actions.setBuild(b.dataset.build));
+  });
+  $('vort-toggle').addEventListener('click', () => {
+    store.patch({ vorticity: !store.state.vorticity });
+    syncStatic();
+  });
   $('clear-mask').addEventListener('click', () => actions.clearMask());
   $('reset-sim').addEventListener('click', () => actions.reset());
   $('toggle-run').addEventListener('click', () => {

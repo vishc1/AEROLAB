@@ -72,8 +72,8 @@
                 — just air.
               </p>
               <div class="hero-meta">
-                <span>INCOMPRESSIBLE · 2D</span>
-                <span>65,536 TRACERS</span>
+                <span>2D GPU · 3D LATTICE-BOLTZMANN</span>
+                <span>CAMERA SHAPE CAPTURE</span>
                 <span>60 FPS TARGET</span>
               </div>
             </div>
@@ -81,7 +81,17 @@
 
           <section class="lab" aria-label="Interactive wind tunnel">
             <div class="lab-bar">
-              <div class="lab-tabs" role="group" aria-label="Drawing tool">
+              <div class="lab-tabs dim-tabs" role="group" aria-label="Dimension">
+                <button class="lab-tab is-active" data-dim="2d" type="button">2D</button>
+                <button class="lab-tab" data-dim="3d" type="button">3D</button>
+              </div>
+
+              <div class="lab-tabs" role="group" aria-label="Input mode">
+                <button class="lab-tab is-active" data-input="draw" type="button">Draw</button>
+                <button class="lab-tab" data-input="camera" type="button">Camera</button>
+              </div>
+
+              <div class="lab-tabs" id="tool-tabs" role="group" aria-label="Drawing tool">
                 <button class="lab-tab is-active" data-tool="draw" type="button">
                   <span class="tab-index">01</span>
                   Sculpt
@@ -97,7 +107,10 @@
                 <button class="shape-chip is-active" data-preset="airfoil" type="button">Airfoil</button>
                 <button class="shape-chip" data-preset="cylinder" type="button">Cylinder</button>
                 <button class="shape-chip" data-preset="plate" type="button">Plate</button>
+                <button class="shape-chip" data-preset="card" type="button">Card</button>
+                <button class="shape-chip" data-preset="car" type="button">Car</button>
                 <button class="shape-chip shape-ghost" id="clear-mask" type="button">Clear</button>
+                <button class="shape-chip shape-toggle" id="vort-toggle" type="button" aria-pressed="false">Vorticity</button>
               </div>
 
               <div class="lab-status">
@@ -130,6 +143,13 @@
                     <canvas id="gl-canvas"></canvas>
                     <canvas id="input-overlay" aria-label="Wind tunnel interactive drawing surface"></canvas>
                     <div id="brush-cursor" class="brush-cursor"></div>
+                    <canvas id="gl3d-canvas" class="gl3d" hidden aria-label="3D wind tunnel view. Drag to orbit, scroll to zoom."></canvas>
+                    <div id="build-chips" class="build-chips" hidden>
+                      <span>BUILD</span>
+                      <button class="shape-chip is-active" data-build="wing" type="button">Wing</button>
+                      <button class="shape-chip" data-build="wall" type="button">Extrude</button>
+                      <button class="shape-chip" data-build="revolve" type="button">Revolve</button>
+                    </div>
 
                     <div class="stage-tag stage-tag-top-left">AIR IN <span>→</span></div>
                     <div class="stage-tag stage-tag-top-right">OPEN OUTLET</div>
@@ -147,7 +167,7 @@
                     </div>
 
                     <div class="stage-bottom-right">
-                      <span>2D MODEL · CREAM = SOLID</span>
+                      <span id="model-note">2D MODEL · CREAM = SOLID</span>
                       <b id="hud-iterations">38</b>
                       <span>Jacobi</span>
                     </div>
@@ -165,6 +185,45 @@
                         <strong id="error-title">Renderer unavailable</strong>
                         <p id="error-text"></p>
                       </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div id="camera-panel" class="camera-panel" hidden>
+                  <div class="cam-head">
+                    <span class="eyebrow">Camera shape capture</span>
+                    <b id="cam-state">OFFLINE</b>
+                  </div>
+                  <div class="cam-body">
+                    <div class="cam-views">
+                      <div class="cam-view">
+                        <video id="cam-video" autoplay muted playsinline></video>
+                        <canvas id="cam-feed" width="320" height="240"></canvas>
+                      </div>
+                      <canvas id="cam-mask" width="320" height="240"></canvas>
+                    </div>
+                    <div class="cam-controls">
+                      <p id="cam-prompt" class="cam-prompt">Start the camera to calibrate</p>
+                      <div class="cam-row">
+                        <button id="cam-start" class="shape-chip" type="button">Start camera</button>
+                        <button id="cam-center" class="shape-chip" type="button">Sample center</button>
+                        <button id="cam-freeze" class="shape-chip" type="button" disabled>Freeze shape</button>
+                      </div>
+                      <div class="cam-row">
+                        <label for="cam-detect">Detect</label>
+                        <select id="cam-detect">
+                          <option value="object">Object colour</option>
+                          <option value="backdrop">Backdrop colour</option>
+                        </select>
+                        <input id="cam-key" type="color" value="#ef6b4a" aria-label="Key colour" />
+                        <code id="cam-hex">#EF6B4A</code>
+                      </div>
+                      <div class="cam-row">
+                        <label for="cam-tol">Tolerance <b id="cam-tol-value">64</b></label>
+                        <input id="cam-tol" class="range" type="range" min="20" max="140" step="1" value="64" />
+                      </div>
+                      <div id="cam-status" class="cam-status" data-state="idle"><i></i><span>Waiting for camera</span></div>
+                      <div class="cam-coverage">Coverage <b id="cam-coverage">0%</b></div>
                     </div>
                   </div>
                 </div>
@@ -305,6 +364,28 @@
             </div>
           </section>
 
+          <section class="workshop" aria-label="Workshop leaderboard">
+            <div class="workshop-head">
+              <div>
+                <span class="eyebrow">Workshop</span>
+                <h2>Run the test. <em>Climb the board.</em></h2>
+              </div>
+              <p class="notes-intro">
+                Five seconds of averaged drag and lift becomes an efficiency score.
+                Scores are kept in this browser.
+              </p>
+            </div>
+            <div class="workshop-grid">
+              <div id="leaderboard" class="leaderboard"></div>
+              <div id="coach-card" class="coach-card">
+                <span class="coach-icon">✦</span>
+                <p class="eyebrow">Flow coach</p>
+                <h3>Waiting for a run</h3>
+                <p>Run a five-second test and the coach explains what your shape did to the air.</p>
+              </div>
+            </div>
+          </section>
+
           <section class="notes">
             <div class="notes-head">
               <div>
@@ -406,6 +487,27 @@
           </section>
           <section>
             <span class="modal-num">04</span>
+            <h3>3D mode · D3Q19 lattice-Boltzmann</h3>
+            <p>
+              The 3D tunnel runs a D3Q19 BGK lattice-Boltzmann solver on a 72×36×36 grid
+              with half-way bounce-back walls. Drag and lift come from momentum exchange
+              on every solid link. Your 2D silhouette is lifted into a finite wing, a
+              wall-to-wall extrusion, or a body of revolution. Drag to orbit, scroll to
+              zoom, double-click to reset.
+            </p>
+          </section>
+          <section>
+            <span class="modal-num">05</span>
+            <h3>Camera capture</h3>
+            <p>
+              Pick an object colour (or the backdrop) and the webcam is thresholded in
+              hue-aware colour space, smoothed over time, reduced to the largest blob,
+              hole-filled and fitted to a quarter of the tunnel height — then used as the
+              solid boundary. Freeze it to run a fair test.
+            </p>
+          </section>
+          <section>
+            <span class="modal-num">06</span>
             <h3>Pressure force integration</h3>
             <p>
               A pixel-pack buffer reads the pressure field asynchronously. The CPU walks
