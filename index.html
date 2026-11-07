@@ -3,12 +3,528 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta
+      name="description"
+      content="AEROLAB — a real-time WebGL2 wind tunnel. Draw a shape, watch the air answer."
+    />
     <meta name="theme-color" content="#07100f" />
-    <meta name="description" content="A live, browser-based wind tunnel for things you build." />
-    <title>Slipstream — hold it in the flow</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap"
+      rel="stylesheet"
+    />
+    <title>AEROLAB — let the air answer</title>
   </head>
   <body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.ts"></script>
+    <div class="app-shell">
+      <div class="ambient ambient-a"></div>
+      <div class="ambient ambient-b"></div>
+
+      <div class="page">
+        <header class="site-header">
+          <a class="brand" href="#" aria-label="Aerolab home">
+            <span class="brand-mark" aria-hidden="true">
+              <svg viewBox="0 0 42 24" fill="none">
+                <path d="M2 6.5h21c5.2 0 7.6-2.2 12-2.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M2 12h29.5c3.2 0 5.2.8 8.5 1.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M2 17.5h13.5c5.6 0 8.4 2.4 14.5 2.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".58"/>
+              </svg>
+            </span>
+            <span class="brand-type">
+              <span class="wordmark">AEROLAB</span>
+              <span class="brand-sub">Wind tunnel 01</span>
+            </span>
+          </a>
+
+          <div class="header-status" id="live-pill">
+            <span class="pulse-dot"></span>
+            <span id="live-label">SIMULATING</span>
+            <span class="header-sep"></span>
+            <span class="header-perf"><b id="fps-top">60</b> FPS · <b id="ms-top">16.7</b> MS</span>
+          </div>
+
+          <div class="header-right">
+            <span class="header-note">WEBGL2 · GPU</span>
+            <button id="open-docs" class="text-button" type="button">
+              Numerics
+              <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M6 3.5h6.5V10M12 4 4 12" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+              </svg>
+            </button>
+          </div>
+        </header>
+
+        <main class="main">
+          <section class="hero">
+            <div class="hero-copy">
+              <span class="eyebrow">A real-time wind tunnel for things you make</span>
+              <h1>
+                Draw a shape.<br />
+                <em>Let the air answer.</em>
+              </h1>
+            </div>
+            <div class="hero-side">
+              <p>
+                An incompressible Navier–Stokes solver runs on your GPU. Every wake,
+                vortex and gram of drag responds while you sculpt. No meshes, no setup
+                — just air.
+              </p>
+              <div class="hero-meta">
+                <span>2D GPU · 3D LATTICE-BOLTZMANN</span>
+                <span>CAMERA SHAPE CAPTURE</span>
+                <span>60 FPS TARGET</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="lab" aria-label="Interactive wind tunnel">
+            <div class="lab-bar">
+              <div class="lab-tabs dim-tabs" role="group" aria-label="Dimension">
+                <button class="lab-tab is-active" data-dim="2d" type="button">2D</button>
+                <button class="lab-tab" data-dim="3d" type="button">3D</button>
+              </div>
+
+              <div class="lab-tabs" role="group" aria-label="Input mode">
+                <button class="lab-tab is-active" data-input="draw" type="button">Draw</button>
+                <button class="lab-tab" data-input="camera" type="button">Camera</button>
+              </div>
+
+              <div class="lab-tabs" id="tool-tabs" role="group" aria-label="Drawing tool">
+                <button class="lab-tab is-active" data-tool="draw" type="button">
+                  <span class="tab-index">01</span>
+                  Sculpt
+                </button>
+                <button class="lab-tab" data-tool="erase" type="button">
+                  <span class="tab-index">02</span>
+                  Erase
+                </button>
+              </div>
+
+              <div class="shape-bar">
+                <span class="shape-label">Quick shapes</span>
+                <button class="shape-chip is-active" data-preset="airfoil" type="button">Airfoil</button>
+                <button class="shape-chip" data-preset="cylinder" type="button">Cylinder</button>
+                <button class="shape-chip" data-preset="plate" type="button">Plate</button>
+                <button class="shape-chip" data-preset="card" type="button">Card</button>
+                <button class="shape-chip" data-preset="car" type="button">Car</button>
+                <button class="shape-chip shape-ghost" id="clear-mask" type="button">Clear</button>
+                <button class="shape-chip shape-toggle" id="vort-toggle" type="button" aria-pressed="false">Vorticity</button>
+              </div>
+
+              <div class="lab-status">
+                <span class="sim-state">
+                  <i class="sim-dot"></i>
+                  <span id="footer-status">Pressure projection active</span>
+                </span>
+                <button id="toggle-run" class="square-button" type="button" aria-label="Pause simulation">
+                  <svg class="pause-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                    <rect x="5.5" y="4.5" width="3" height="11" rx="1" fill="currentColor"/>
+                    <rect x="11.5" y="4.5" width="3" height="11" rx="1" fill="currentColor"/>
+                  </svg>
+                  <svg class="play-icon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                    <path d="M6.4 4.4v11.2c0 .5.6.8 1 .5l8.1-5.6a.6.6 0 0 0 0-1L7.4 4c-.4-.3-1 0-1 .4Z" fill="currentColor"/>
+                  </svg>
+                </button>
+                <button id="reset-sim" class="square-button" type="button" aria-label="Reset flow">
+                  <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                    <path d="M4.7 6.4A6.5 6.5 0 1 1 3.5 10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+                    <path d="M3.4 3.6v3.5h3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="lab-body">
+              <div class="stage-column">
+                <div class="stage-area">
+                  <div id="stage" class="stage">
+                    <canvas id="gl-canvas"></canvas>
+                    <canvas id="input-overlay" aria-label="Wind tunnel interactive drawing surface"></canvas>
+                    <div id="brush-cursor" class="brush-cursor"></div>
+                    <canvas id="gl3d-canvas" class="gl3d" hidden aria-label="3D wind tunnel view. Drag to orbit, scroll to zoom."></canvas>
+                    <div id="build-chips" class="build-chips" hidden>
+                      <span>BUILD</span>
+                      <button class="shape-chip is-active" data-build="wing" type="button">Wing</button>
+                      <button class="shape-chip" data-build="wall" type="button">Extrude</button>
+                      <button class="shape-chip" data-build="revolve" type="button">Revolve</button>
+                    </div>
+
+                    <div class="stage-tag stage-tag-top-left">AIR IN <span>→</span></div>
+                    <div class="stage-tag stage-tag-top-right">OPEN OUTLET</div>
+                    <div class="stage-mode" id="stage-mode">NACA 0012 · AoA 4.5°</div>
+
+                    <div class="stage-bottom-left">
+                      <div class="legend-block">
+                        <span>FLOW SPEED</span>
+                        <i class="legend-ramp"></i>
+                        <div class="legend-scale"><b>0</b><b>1.2</b><b>2.4 U∞</b></div>
+                      </div>
+                      <div class="legend-vortex">
+                        <i></i> recirculation
+                      </div>
+                    </div>
+
+                    <div class="stage-bottom-right">
+                      <span id="model-note">2D MODEL · CREAM = SOLID</span>
+                      <b id="hud-iterations">38</b>
+                      <span>Jacobi</span>
+                    </div>
+
+                    <div id="pause-overlay" class="pause-overlay">
+                      <div class="pause-card">
+                        <span>SIMULATION PAUSED</span>
+                        <strong>Press space or play to resume</strong>
+                      </div>
+                    </div>
+
+                    <div id="error-overlay" class="error-overlay" hidden>
+                      <div class="error-card">
+                        <span class="error-tag">WEBGL2 ERROR</span>
+                        <strong id="error-title">Renderer unavailable</strong>
+                        <p id="error-text"></p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div id="camera-panel" class="camera-panel" hidden>
+                  <div class="cam-head">
+                    <span class="eyebrow">Camera shape capture</span>
+                    <b id="cam-state">OFFLINE</b>
+                  </div>
+                  <div class="cam-body">
+                    <div class="cam-views">
+                      <div class="cam-view">
+                        <video id="cam-video" autoplay muted playsinline></video>
+                        <canvas id="cam-feed" width="320" height="240"></canvas>
+                      </div>
+                      <canvas id="cam-mask" width="320" height="240"></canvas>
+                    </div>
+                    <div class="cam-controls">
+                      <p id="cam-prompt" class="cam-prompt">Start the camera to calibrate</p>
+                      <div class="cam-row">
+                        <button id="cam-start" class="shape-chip" type="button">Start camera</button>
+                        <button id="cam-center" class="shape-chip" type="button">Sample center</button>
+                        <button id="cam-freeze" class="shape-chip" type="button" disabled>Freeze shape</button>
+                      </div>
+                      <div class="cam-row">
+                        <label for="cam-detect">Detect</label>
+                        <select id="cam-detect">
+                          <option value="object">Object colour</option>
+                          <option value="backdrop">Backdrop colour</option>
+                        </select>
+                        <input id="cam-key" type="color" value="#ef6b4a" aria-label="Key colour" />
+                        <code id="cam-hex">#EF6B4A</code>
+                      </div>
+                      <div class="cam-row">
+                        <label for="cam-tol">Tolerance <b id="cam-tol-value">28</b></label>
+                        <input id="cam-tol" class="range" type="range" min="8" max="100" step="1" value="28" />
+                      </div>
+                      <div id="cam-status" class="cam-status" data-state="idle"><i></i><span>Waiting for camera</span></div>
+                      <div class="cam-coverage">Coverage <b id="cam-coverage">0%</b></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="stage-caption">
+                  <span class="caption-hints">
+                    <kbd>Drag</kbd> sculpt
+                    <kbd>Shift</kbd> erase
+                    <kbd>Space</kbd> pause
+                  </span>
+                  <span class="caption-data">
+                    <b id="hud-wind">18.0</b> m/s
+                    <i></i>
+                    <b id="hud-particles">56.4</b>k tracers
+                    <i></i>
+                    <b id="hud-grid">384 × 192</b> grid
+                  </span>
+                </div>
+              </div>
+
+              <aside class="metrics-rail" aria-label="Aerodynamic telemetry">
+                <div class="metric-block metric-drag">
+                  <div class="metric-label">
+                    <span>Relative drag</span>
+                    <i>C<sub>d</sub></i>
+                  </div>
+                  <strong class="metric-value" id="cd-value">0.000</strong>
+                  <div class="metric-foot">
+                    <span id="cd-trend">Awaiting pressure</span>
+                    <span>lower is better</span>
+                  </div>
+                </div>
+
+                <div class="metric-block metric-lift">
+                  <div class="metric-label">
+                    <span>Relative lift</span>
+                    <i>C<sub>l</sub></i>
+                  </div>
+                  <strong class="metric-value" id="cl-value">0.000</strong>
+                  <div class="metric-foot">
+                    <span>upward force</span>
+                    <span class="regime-chip" id="regime-chip">TRANSITIONAL</span>
+                  </div>
+                </div>
+
+                <div class="rail-chart">
+                  <div class="rail-heading">
+                    <span>Force history</span>
+                    <span class="chart-live"><i></i> LIVE</span>
+                  </div>
+                  <div class="chart-wrap"><canvas id="cd-chart"></canvas></div>
+                  <div class="chart-axis"><span>−14 s</span><span>now</span></div>
+                </div>
+
+                <div class="rail-stats">
+                  <div class="rail-stat">
+                    <span>Drag force</span>
+                    <div><strong id="fd-value">0.0</strong><em>N</em></div>
+                  </div>
+                  <div class="rail-stat">
+                    <span>Lift force</span>
+                    <div><strong id="fl-value">0.0</strong><em>N</em></div>
+                  </div>
+                  <div class="rail-stat">
+                    <span>Reynolds</span>
+                    <div><strong id="re-value">692</strong><em>Re</em></div>
+                  </div>
+                  <div class="rail-stat">
+                    <span>Lift / drag</span>
+                    <div><strong id="ld-value">0.00</strong><em>L/D</em></div>
+                  </div>
+                </div>
+
+                <div class="rail-detail">
+                  <span>Ref. length <b id="ref-length">0.620</b></span>
+                  <span>Surface samples <b id="boundary-count">0</b></span>
+                  <span>Iterations <b id="iter-count">38</b></span>
+                </div>
+
+                <div class="benchmark">
+                  <button id="run-benchmark" class="benchmark-button" type="button">
+                    <span id="bench-label">Run 5-second test</span>
+                    <svg viewBox="0 0 18 18" fill="none" aria-hidden="true">
+                      <path d="M5.8 3.7v10.6c0 .5.6.8 1 .5l7.6-5.3a.6.6 0 0 0 0-1L6.8 3.2c-.4-.3-1 0-1 .5Z" fill="currentColor"/>
+                    </svg>
+                  </button>
+                  <div class="benchmark-track"><i id="bench-progress"></i></div>
+                  <div class="benchmark-note" id="bench-note">Average pressure integral over five seconds.</div>
+                </div>
+              </aside>
+            </div>
+
+            <div class="lab-controls">
+              <div class="control">
+                <div class="control-head">
+                  <label for="wind-slider">Wind speed</label>
+                  <output id="wind-value" for="wind-slider">18.0 <em>m/s</em></output>
+                </div>
+                <input id="wind-slider" class="range" type="range" min="2" max="30" step="0.5" value="18" />
+                <div class="range-scale"><span>2</span><span>30</span></div>
+              </div>
+
+              <div class="control">
+                <div class="control-head">
+                  <label for="viscosity-slider">Viscosity</label>
+                  <output id="viscosity-value" for="viscosity-slider">0.026 <em>m²/s</em></output>
+                </div>
+                <input id="viscosity-slider" class="range" type="range" min="0.004" max="0.2" step="0.002" value="0.026" />
+                <div class="range-scale"><span>0.004</span><span>0.200</span></div>
+              </div>
+
+              <div class="control">
+                <div class="control-head">
+                  <label for="density-slider">Tracers</label>
+                  <output id="density-value" for="density-slider">56,360</output>
+                </div>
+                <input id="density-slider" class="range" type="range" min="10" max="100" step="1" value="86" />
+                <div class="range-scale"><span>6.5k</span><span>65.5k</span></div>
+              </div>
+
+              <div class="control">
+                <div class="control-head">
+                  <label for="brush-slider">Brush</label>
+                  <output id="brush-value" for="brush-slider">14 <em>px</em></output>
+                </div>
+                <input id="brush-slider" class="range" type="range" min="4" max="40" step="1" value="14" />
+                <div class="range-scale"><span>4</span><span>40</span></div>
+              </div>
+
+              <div class="control control-grid">
+                <div class="control-head">
+                  <label for="resolution-slider">Solver grid</label>
+                  <output id="resolution-value" for="resolution-slider">384 × 192</output>
+                </div>
+                <input id="resolution-slider" class="range" type="range" min="0" max="2" step="1" value="1" />
+                <div class="range-scale"><span>256 × 128</span><span>512 × 256</span></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="workshop" aria-label="Workshop leaderboard">
+            <div class="workshop-head">
+              <div>
+                <span class="eyebrow">Workshop</span>
+                <h2>Run the test. <em>Climb the board.</em></h2>
+              </div>
+              <p class="notes-intro">
+                Five seconds of averaged drag and lift becomes an efficiency score.
+                Scores are kept in this browser.
+              </p>
+            </div>
+            <div class="workshop-grid">
+              <div id="leaderboard" class="leaderboard"></div>
+              <div id="coach-card" class="coach-card">
+                <span class="coach-icon">✦</span>
+                <p class="eyebrow">Flow coach</p>
+                <h3>Waiting for a run</h3>
+                <p>Run a five-second test and the coach explains what your shape did to the air.</p>
+              </div>
+            </div>
+          </section>
+
+          <section class="notes">
+            <div class="notes-head">
+              <div>
+                <span class="eyebrow">Under the hood</span>
+                <h2>Real fluid physics,<br /><em>running in your browser.</em></h2>
+              </div>
+              <p class="notes-intro">
+                Four ping-pong GPU passes per frame. The tracers ride the same
+                velocity field the pressure solve projects — so what you see is what
+                the force integral feels.
+              </p>
+            </div>
+            <div class="note-grid">
+              <article class="note">
+                <span class="note-index">01</span>
+                <h3>Draw a silhouette</h3>
+                <p>
+                  Sculpt directly in the test section, or start from an airfoil, cylinder
+                  or flat plate. Solid cells are rasterized into the solver mask at grid
+                  resolution.
+                </p>
+              </article>
+              <article class="note">
+                <span class="note-index">02</span>
+                <h3>Move the air</h3>
+                <p>
+                  Semi-Lagrangian advection, divergence, Jacobi pressure iterations and a
+                  projection step run in ping-pong float framebuffers — every frame, on
+                  the GPU.
+                </p>
+              </article>
+              <article class="note">
+                <span class="note-index">03</span>
+                <h3>Measure the force</h3>
+                <p>
+                  Pressure is read back asynchronously and integrated around the body
+                  boundary. Cd, Cl, drag and lift update at 20 Hz while the tunnel renders
+                  at 60.
+                </p>
+              </article>
+            </div>
+          </section>
+        </main>
+
+        <footer class="site-footer">
+          <span>AEROLAB / EXPERIMENT 01</span>
+          <span class="footer-center">64-bit float pressure · 16-bit float velocity · 65,536 GPU tracers</span>
+          <span class="footer-perf"><b id="footer-fps">60 FPS</b> · <span id="footer-perf">16.7 MS</span></span>
+        </footer>
+      </div>
+    </div>
+
+    <div id="docs-modal" class="modal" hidden>
+      <div class="modal-backdrop" data-close-modal></div>
+      <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="docs-title">
+        <div class="modal-header">
+          <div>
+            <span class="eyebrow">System / numerical core</span>
+            <h2 id="docs-title">How the wind tunnel works</h2>
+          </div>
+          <button class="square-button" id="close-docs" type="button" aria-label="Close">
+            <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+              <path d="m5 5 10 10M15 5 5 15" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+            </svg>
+          </button>
+        </div>
+        <div class="modal-body">
+          <section>
+            <span class="modal-num">01</span>
+            <h3>Ping-pong GPU buffers</h3>
+            <p>
+              WebGL2 cannot read and write the same texture in one draw call. Velocity
+              and pressure therefore live in two framebuffers. A pass reads
+              <code>read</code> and renders into <code>write</code>; then the pair is
+              swapped. This is the GPU-compute equivalent of a double buffer and avoids
+              read-after-write hazards.
+            </p>
+          </section>
+          <section>
+            <span class="modal-num">02</span>
+            <h3>Fractional-step Navier–Stokes</h3>
+            <p>
+              Each frame: semi-Lagrangian advection traces velocity backwards in time,
+              central differences compute divergence, 32–44 Jacobi iterations solve
+              <code>∇²p = ∇·u</code>, and the pressure gradient is subtracted from
+              velocity. Solid cells enforce no-slip; the inlet carries a small
+              time-varying shear.
+            </p>
+          </section>
+          <section>
+            <span class="modal-num">03</span>
+            <h3>65,536 GPU tracers</h3>
+            <p>
+              Particle positions are stored in a 256×256 RGBA32F texture. A fragment pass
+              advances each tracer with midpoint RK2, respawning runaways at the inlet.
+              The draw shader maps speed to deep blue → cyan → cream, with muted violet
+              recirculation.
+            </p>
+          </section>
+          <section>
+            <span class="modal-num">04</span>
+            <h3>3D mode · D3Q19 lattice-Boltzmann</h3>
+            <p>
+              The 3D tunnel runs a D3Q19 BGK lattice-Boltzmann solver on a 72×36×36 grid
+              with half-way bounce-back walls. Drag and lift come from momentum exchange
+              on every solid link. Your 2D silhouette is lifted into a finite wing, a
+              wall-to-wall extrusion, or a body of revolution. Drag to orbit, scroll to
+              zoom, double-click to reset.
+            </p>
+          </section>
+          <section>
+            <span class="modal-num">05</span>
+            <h3>Camera capture</h3>
+            <p>
+              Pick an object colour (or the backdrop) and the webcam is thresholded in
+              hue-aware colour space, smoothed over time, reduced to the largest blob,
+              hole-filled and fitted to a quarter of the tunnel height — then used as the
+              solid boundary. Freeze it to run a fair test.
+            </p>
+          </section>
+          <section>
+            <span class="modal-num">06</span>
+            <h3>Pressure force integration</h3>
+            <p>
+              A pixel-pack buffer reads the pressure field asynchronously. The CPU walks
+              the solid/fluid interface, sums <code>−p·n·ds</code> into drag and lift,
+              then normalizes to <code>C<sub>d</sub></code> and
+              <code>C<sub>l</sub></code> against the body's reference length. UI metrics
+              update at 20 Hz independently of the 60 FPS render loop.
+            </p>
+          </section>
+        </div>
+        <div class="modal-footer">
+          <span>WebGL2 · GLSL ES 3.00 · no simulation dependencies</span>
+          <button class="text-button" data-close-modal type="button">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
   </body>
 </html>

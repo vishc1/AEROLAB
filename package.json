@@ -1,16 +1,31 @@
 {
-  "name": "slipstream",
-  "private": true,
-  "version": "0.1.0",
-  "type": "module",
+  "name": "tinkerit",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview",
-    "test": "tsc --noEmit"
+    "test": "npm run build",
+    "test:smoke": "node scripts/check.mjs",
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vishc1/TinkerIt.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/vishc1/TinkerIt/issues"
+  },
+  "homepage": "https://github.com/vishc1/TinkerIt#readme",
   "devDependencies": {
-    "typescript": "^5.7.2",
-    "vite": "^6.0.5"
+    "@tailwindcss/vite": "^4.3.5",
+    "puppeteer-core": "^25.16.0",
+    "tailwindcss": "^4.3.5",
+    "vite": "^8.3.6"
   }
 }
