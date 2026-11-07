@@ -1,0 +1,30 @@
+{
+  "name": "tinkerit",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/vishc1/TinkerIt.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/vishc1/TinkerIt/issues"
+  },
+  "homepage": "https://github.com/vishc1/TinkerIt#readme",
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.5",
+    "puppeteer-core": "^25.16.0",
+    "tailwindcss": "^4.3.5",
+    "vite": "^8.3.6"
+  }
+}
