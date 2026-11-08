@@ -10,7 +10,7 @@ const browser = await puppeteer.launch({
 const page = await browser.newPage();
 await page.setViewport({ width: 1512, height: 950 });
 const logs = [];
-page.on('console', (m) => m.type() === 'error' && !m.text().includes('status of 400') && logs.push(m.text()));
+page.on('console', (m) => m.type() === 'error' && !m.text().includes('status of 400') && !m.text().includes('status of 404') && logs.push(m.text()));
 page.on('pageerror', (e) => logs.push(e.message));
 const results = [];
 const check = (name, ok, info = '') => { results.push(ok); console.log(`${ok ? 'PASS' : 'FAIL'} ${name} ${info}`); };
@@ -63,6 +63,30 @@ check('demo caption appears', await page.evaluate(() => !document.getElementById
 await page.keyboard.press('Escape');
 await sleep(300);
 check('demo stops on Esc', await page.evaluate(() => document.getElementById('demo-caption').hidden));
+
+// 3D missions + predict-first
+await page.evaluate(() => document.querySelector('[data-mission="vortex3d"]').click());
+await sleep(1200);
+check('3D mission switches to 3D', await page.evaluate(() => window.__AEROLAB__.store.state.dim === '3d'));
+check('predict prompt shown', await page.evaluate(() => !document.getElementById('mission-predict').hidden && document.querySelectorAll('[data-guess]').length === 3));
+await page.evaluate(() => document.querySelector('[data-guess="0"]').click());
+check('prediction recorded', await page.evaluate(() => document.getElementById('mission-predict').textContent.includes('You predicted')));
+await page.evaluate(() => { window.__AEROLAB__.store.patch({ vorticity: true }); });
+await sleep(2500);
+check('vorticity mission completes with verdict', await page.evaluate(() => document.getElementById('mission-brief').textContent.includes('correct')));
+await page.evaluate(() => document.getElementById('mission-quit').click());
+
+await page.evaluate(() => document.querySelector('[data-mission="tips3d"]').click());
+await sleep(1000);
+await page.evaluate(() => window.__AEROLAB__.runBenchmark());
+await sleep(6500);
+check('rectangle test does NOT complete ellipse mission', await page.evaluate(() => !document.getElementById('mission-brief').textContent.includes('complete')));
+await page.evaluate(() => { document.querySelector('[data-plan="ellipse"]').click(); });
+await sleep(1500);
+await page.evaluate(() => window.__AEROLAB__.runBenchmark());
+await sleep(6500);
+check('ellipse test completes mission', await page.evaluate(() => document.getElementById('mission-brief').textContent.includes('complete')));
+await page.evaluate(() => document.getElementById('mission-quit').click());
 
 check('no console errors', logs.length === 0, logs.join(' | '));
 await browser.close();

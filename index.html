@@ -11,7 +11,7 @@
     <meta name="theme-color" content="#07100f" />
     <meta property="og:type" content="website" />
     <meta property="og:title" content="AEROLAB — a wind tunnel in a browser tab" />
-    <meta property="og:description" content="Draw a shape or hold one up to the camera, watch a GPU fluid solver reveal the wake, and learn why. Five missions, drag in litres of fuel, shareable designs." />
+    <meta property="og:description" content="Draw a shape or hold one up to the camera, watch a GPU fluid solver reveal the wake, and learn why. Eight missions, drag in litres of fuel, shareable designs." />
     <meta property="og:image" content="https://slipstream-indol.vercel.app/og.jpg" />
     <meta property="og:url" content="https://slipstream-indol.vercel.app/" />
     <meta name="twitter:card" content="summary_large_image" />
@@ -211,6 +211,7 @@
                       </div>
                       <div class="mission-hud-track"><i id="mission-hud-bar"></i></div>
                       <p id="mission-hud-text"></p>
+                      <div id="mission-predict" class="mission-predict" hidden></div>
                       <button id="mission-next" class="mission-hud-next" type="button" hidden>Next mission</button>
                     </div>
 
@@ -579,8 +580,13 @@
 
             <div class="mission-dock" aria-label="Missions">
               <div class="mission-dock-head">
+<<<<<<< HEAD
+                <span class="eyebrow">Learn by doing</span>
+                <b id="mission-count">0 / 8</b>
+=======
                 <span class="eyebrow">Missions</span>
                 <b id="mission-count">0 / 5</b>
+>>>>>>> origin/main
               </div>
               <div id="mission-chips" class="mission-chips" role="group" aria-label="Missions"></div>
               <p id="mission-brief" class="mission-brief"></p>

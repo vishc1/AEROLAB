@@ -90,7 +90,7 @@ export function createReport(store, { captureFrame, labelFor, missionsDone, base
     const parts = [
       `RE ${Math.round(m.re)} · ${m.regime}`,
       `${s.dim.toUpperCase()} SOLVER · ${s.windSpeed.toFixed(1)} M/S`,
-      `MISSIONS ${missionsDone()} / 5`,
+      `MISSIONS ${missionsDone()} / 8`,
       b ? `VS ${b.name.toUpperCase()}: ${Math.round(((m.cd - b.cd) / Math.max(b.cd, 1e-6)) * 100)}% DRAG` : null,
     ].filter(Boolean);
     ctx.fillText(parts.join('   ·   '), 40, H - 18);

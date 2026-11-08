@@ -2583,6 +2583,12 @@ body:not(.build-sketch) #plan-pane { display: none; }
 .explain-card { border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 10px 12px; margin-top: 10px; font-size: 12px; line-height: 1.5; color: #cfd8cf; }
 .explain-card p { margin: 6px 0 0; }
 
+.mission-predict { margin-top: 8px; padding-top: 8px; border-top: 1px dashed rgba(255,255,255,0.14); font-size: 10px; line-height: 1.5; color: var(--muted); }
+.mission-predict small { display: block; font-family: var(--mono); letter-spacing: 0.14em; color: var(--coral, #e5a183); font-size: 8px; }
+.mission-predict div { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.mission-predict button { padding: 4px 9px; font: inherit; color: inherit; background: transparent; border: 1px solid rgba(255,255,255,0.22); cursor: pointer; }
+.mission-predict button:hover { border-color: var(--coral, #e5a183); }
+
 .error-help { color: var(--text, #e8eef2); }
 .error-detail { font-family: var(--mono); opacity: 0.7; }
 .error-actions { margin-top: 12px; }

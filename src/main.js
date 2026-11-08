@@ -349,6 +349,11 @@ function init() {
 
   missions = createMissions(store, {
     setDim,
+    setBuild,
+    setPlan: (name) => {
+      document.querySelectorAll('[data-plan]').forEach((x) => x.classList.toggle('is-active', x.dataset.plan === name));
+      sketchDock?.applyPreset(name);
+    },
     setInput,
     selectPreset,
     syncStatic: () => ui?.syncStatic(),
@@ -586,7 +591,7 @@ function init() {
             thumb: thumbCanvas.toDataURL('image/png'),
           },
         });
-        missions.onTestComplete({ input: s.input, cd, cl });
+        missions.onTestComplete({ input: s.input, cd, cl, dim: s.dim, plan: sketchDock?.preset });
         classroom.submit({ design: labelFor(s), cd, cl, score: efficiency(cd, cl, s.dim.toUpperCase()) });
         autoName = null;
       } else {

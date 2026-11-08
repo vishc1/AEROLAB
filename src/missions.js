@@ -73,6 +73,60 @@ export const MISSIONS = [
     lesson:
       'You just ran a wind-tunnel test on a physical object with no wind tunnel. Paper prototypes, clay models and hands all get the same pressure integral the presets do.',
   },
+  {
+    id: 'wing3d',
+    index: '06',
+    title: 'Fly a real wing',
+    dim: '3d',
+    plan: 'straight',
+    preset: 'airfoil',
+    goal: { type: 'test', dim: '3D' },
+    predict: {
+      q: 'In 2D the wing is infinitely wide. A real wing has tips. Will its drag go up or down?',
+      options: ['Up', 'Down', 'Same'],
+      answer: 0,
+    },
+    brief: 'You are now in 3D. The wing has a finite span and the air can slip around its tips. Run a five-second test.',
+    hint: 'Let the flow settle, turn on Vorticity to see the tips, then press Run test.',
+    lesson:
+      'Air leaks from the high-pressure underside round the tip to the low-pressure top and rolls up into wingtip vortices. Making them costs energy, which shows up as induced drag. This is the extra drag every real wing pays for having tips.',
+  },
+  {
+    id: 'tips3d',
+    index: '07',
+    title: 'Round the tips',
+    dim: '3d',
+    plan: 'straight',
+    preset: 'airfoil',
+    goal: { type: 'test', dim: '3D', plan: 'ellipse' },
+    predict: {
+      q: 'Which planform wastes the least energy on tip vortices?',
+      options: ['Rectangle', 'Elliptical', 'Delta triangle'],
+      answer: 1,
+    },
+    brief: 'Switch the planform (top-down outline) to Ellipse in the sketch dock, then run a five-second test and compare the score to the rectangle.',
+    hint: 'The planform chips sit next to the top-down canvas. Pick Ellipse, wait for the flow to settle, then Run test.',
+    lesson:
+      'An elliptical wing spreads lift evenly, which gives the minimum possible induced drag. The Spitfire used exactly this outline. Real designers approximate it with taper and swept, rounded tips.',
+  },
+  {
+    id: 'vortex3d',
+    index: '08',
+    title: 'See the wingtip vortex',
+    dim: '3d',
+    plan: 'straight',
+    preset: 'airfoil',
+    goal: { type: 'vorticity3d' },
+    predict: {
+      q: 'Behind a lifting wing, which way does the air spin at the tips?',
+      options: ['Around the tip, up and over', 'Straight back', 'Randomly'],
+      answer: 0,
+    },
+    brief: 'Turn the Vorticity view on in 3D and watch the tracers behind the wing. Warm and cool colours show spin in opposite directions.',
+    hint: 'Press the Vorticity button in the shape bar. Warm and cool tracers should peel off each tip.',
+    lesson:
+      'Each tip sheds a tube of spinning air that trails for kilometres behind a jet. Pilots call it wake turbulence, and it is why airports space out landings.',
+  },
 ];
 
 function loadDone() {
@@ -123,10 +177,10 @@ export function createMissions(store, actions) {
     if (!active) {
       brief.innerHTML =
         count === MISSIONS.length
-          ? '<strong>All five missions complete.</strong> You have covered wakes, lift, bluff bodies, Reynolds number and real-object testing.'
+          ? '<strong>All eight missions complete.</strong> You have covered wakes, lift, bluff bodies, Reynolds number, real-object testing and 3D wing physics.'
           : '<strong>Pick a mission.</strong> Each one teaches a single aerodynamic idea with a live target you have to hit in the tunnel.';
     } else if (active.phase === 'done') {
-      brief.innerHTML = `<strong>${active.mission.title} · complete.</strong> ${active.mission.lesson}`;
+      brief.innerHTML = `<strong>${active.mission.title} · complete.</strong> ${verdict()}${active.mission.lesson}`;
     } else {
       brief.innerHTML = `<strong>${active.mission.title}.</strong> ${active.mission.brief}`;
     }
@@ -139,6 +193,8 @@ export function createMissions(store, actions) {
       return baseline ? `Cd below ${(baseline.cd * (1 - g.pct)).toFixed(3)} (−${Math.round(g.pct * 100)}%)` : `Cut Cd by ${Math.round(g.pct * 100)}%`;
     if (g.type === 'cl_above') return `Cl above +${g.target.toFixed(2)}`;
     if (g.type === 'laminar') return 'Regime LAMINAR (Re < 180)';
+    if (g.type === 'test') return g.plan ? `Finish a 3D test with the ${g.plan} planform` : 'Finish a 5-second test in 3D';
+    if (g.type === 'vorticity3d') return 'Vorticity view on, in 3D';
     if (g.type === 'camera_test') return 'Finish a 5-second test in Camera mode';
     return '';
   };
@@ -176,11 +232,52 @@ export function createMissions(store, actions) {
         met: met.regime === 'LAMINAR',
       };
     }
+    if (g.type === 'test') {
+      return { display: s.dim === '3d' ? 'Ready · run a test' : 'Switch to 3D', progress: s.dim === '3d' ? 0.4 : 0, met: false };
+    }
+    if (g.type === 'vorticity3d') {
+      const on = s.dim === '3d' && s.vorticity;
+      return { display: on ? 'Vorticity on' : 'Press Vorticity', progress: on ? 1 : 0.2, met: on };
+    }
     return {
       display: s.input === 'camera' ? 'Camera live' : 'Switch to Camera',
       progress: s.input === 'camera' ? (met.boundaryCells > 0 ? 0.6 : 0.3) : 0,
       met: false,
     };
+  };
+
+  const predictBox = $('mission-predict');
+  const renderPredict = () => {
+    if (!predictBox) return;
+    const pr = active?.mission.predict;
+    if (!pr || active.phase === 'done') {
+      predictBox.hidden = true;
+      predictBox.innerHTML = '';
+      return;
+    }
+    predictBox.hidden = false;
+    if (active.guess !== null) {
+      predictBox.innerHTML = `<small>You predicted: <b>${pr.options[active.guess]}</b>. Test it.</small>`;
+      return;
+    }
+    predictBox.innerHTML = `<small>PREDICT FIRST</small><span>${pr.q}</span><div>${pr.options
+      .map((o, i) => `<button type="button" data-guess="${i}">${o}</button>`)
+      .join('')}</div>`;
+  };
+  predictBox?.addEventListener('click', (event) => {
+    const b = event.target.closest('[data-guess]');
+    if (!b || !active || active.guess !== null) return;
+    active.guess = Number(b.dataset.guess);
+    renderPredict();
+  });
+
+  const verdict = () => {
+    const pr = active?.mission.predict;
+    if (!pr) return '';
+    if (active.guess === null) return `Answer: ${pr.options[pr.answer]}. `;
+    return active.guess === pr.answer
+      ? `You predicted ${pr.options[active.guess]}: correct. `
+      : `You predicted ${pr.options[active.guess]}; the answer is ${pr.options[pr.answer]}. `;
   };
 
   const renderHud = (ev) => {
@@ -212,7 +309,7 @@ export function createMissions(store, actions) {
       hudTarget.textContent = 'Complete';
       hudValue.textContent = ev?.display ?? '';
       hudBar.style.width = '100%';
-      hudText.textContent = m.lesson;
+      hudText.textContent = verdict() + m.lesson;
     }
     hud.classList.toggle('is-met', active.phase === 'live' && Boolean(ev?.met));
   };
@@ -222,6 +319,7 @@ export function createMissions(store, actions) {
     done.add(active.mission.id);
     saveDone();
     renderChips();
+    renderPredict();
     renderHud(ev);
     const next = MISSIONS.find((m) => !done.has(m.id));
     nextButton.hidden = !next;
@@ -231,8 +329,18 @@ export function createMissions(store, actions) {
   const start = (id) => {
     const mission = MISSIONS.find((m) => m.id === id);
     if (!mission) return;
-    if (store.state.dim !== '2d') actions.setDim('2d');
-    if (mission.input === 'camera') {
+    const want = mission.dim || '2d';
+    if (store.state.dim !== want) actions.setDim(want);
+    if (want === '3d') {
+      if (store.state.build !== 'sketch') actions.setBuild?.('sketch');
+      if (store.state.input !== 'draw') actions.setInput('draw');
+      if (mission.preset) actions.selectPreset(mission.preset);
+      if (mission.plan) actions.setPlan?.(mission.plan);
+      if (mission.goal.type === 'vorticity3d' && store.state.vorticity) {
+        store.patch({ vorticity: false });
+        actions.syncStatic?.();
+      }
+    } else if (mission.input === 'camera') {
       actions.setInput('camera');
     } else {
       if (store.state.input !== 'draw') actions.setInput('draw');
@@ -242,7 +350,8 @@ export function createMissions(store, actions) {
         actions.syncStatic?.();
       }
     }
-    active = { mission, phase: 'settle', baseline: null, hold: 0, startedAt: performance.now() };
+    active = { mission, phase: 'settle', baseline: null, hold: 0, startedAt: performance.now(), guess: null };
+    renderPredict();
     nextButton.hidden = true;
     lastHud = '';
     renderChips();
@@ -252,6 +361,7 @@ export function createMissions(store, actions) {
 
   const quit = () => {
     active = null;
+    renderPredict();
     renderChips();
     renderHud(null);
   };
@@ -283,8 +393,13 @@ export function createMissions(store, actions) {
       return [...done];
     },
     /** Called from the frame loop when a five-second test finishes. */
-    onTestComplete({ input }) {
+    onTestComplete({ input, dim, plan }) {
       if (!active || active.phase === 'done') return;
+      const g = active.mission.goal;
+      if (g.type === 'test' && String(dim).toUpperCase() === g.dim && (!g.plan || plan === g.plan)) {
+        complete({ display: 'Test complete', progress: 1, met: true });
+        return;
+      }
       if (active.mission.goal.type === 'camera_test' && input === 'camera') {
         complete({ display: 'Test complete', progress: 1, met: true });
       }
@@ -293,7 +408,7 @@ export function createMissions(store, actions) {
       if (!active || active.phase === 'done') return;
       const s = store.state;
       if (active.phase === 'settle') {
-        if (active.mission.goal.type === 'camera_test') {
+        if (['camera_test', 'test', 'vorticity3d'].includes(active.mission.goal.type)) {
           active.phase = 'live';
           active.baseline = { cd: 0, cl: 0, re: s.metrics.re };
         } else {
