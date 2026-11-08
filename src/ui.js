@@ -1,3 +1,4 @@
+import { explain, regimeSentence } from './scoring.js';
 import {
   PARTICLE_CAPACITY,
   RESOLUTIONS,
@@ -115,6 +116,9 @@ export function createUI(store, actions) {
     document.body.classList.toggle('is-model', s.input === 'model');
     $('gl3d-canvas').hidden = !is3d;
     $('build-chips').hidden = !is3d;
+    const sketching = is3d && s.build === 'sketch';
+    document.body.classList.toggle('build-sketch', sketching);
+    $('sketch-dock').hidden = !sketching;
     $('camera-panel').hidden = s.input !== 'camera';
     $('model-panel').hidden = s.input !== 'model';
     $('tool-tabs').hidden = s.input !== 'draw';
@@ -124,6 +128,7 @@ export function createUI(store, actions) {
         ? '2D PROJECTION FROM 3D MESH'
         : '2D MODEL · CREAM = SOLID';
     $('vort-toggle').setAttribute('aria-pressed', String(s.vorticity));
+    $('eq-toggle').setAttribute('aria-pressed', String(!$('eq-card').hidden));
     document.querySelectorAll('[data-dim]').forEach((b) => b.classList.toggle('is-active', b.dataset.dim === s.dim));
     document.querySelectorAll('[data-input]').forEach((b) => b.classList.toggle('is-active', b.dataset.input === s.input));
     document.querySelectorAll('[data-build]').forEach((b) => b.classList.toggle('is-active', b.dataset.build === s.build));
@@ -384,6 +389,10 @@ export function createUI(store, actions) {
     store.patch({ vorticity: !store.state.vorticity });
     syncStatic();
   });
+  $('eq-toggle').addEventListener('click', () => {
+    $('eq-card').hidden = !$('eq-card').hidden;
+    syncStatic();
+  });
   $('clear-mask').addEventListener('click', () => actions.clearMask());
   $('reset-sim').addEventListener('click', () => actions.reset());
   $('toggle-run').addEventListener('click', () => {
@@ -424,6 +433,23 @@ export function createUI(store, actions) {
     chartSignature = '';
   });
 
+  const updateInsight = () => {
+    const s = store.state;
+    const m = s.metrics;
+    const dim = s.dim === '3d' ? '3D' : '2D';
+    if (!$('eq-card').hidden) {
+      $('eq-u').textContent = s.windSpeed.toFixed(1);
+      $('eq-nu').textContent = s.viscosity.toFixed(3);
+      $('eq-re').textContent = Math.round(m.re);
+      $('eq-regime').textContent = String(m.regime ?? '').toUpperCase();
+    }
+    const el = $('explain-text');
+    const text = m.boundaryCells > 0
+      ? `${regimeSentence(m.re)} ${explain(m.cd, m.cl, dim)}`
+      : `${regimeSentence(m.re)} Draw a shape to see how it pushes the air around.`;
+    if (el.textContent !== text) el.textContent = text;
+  };
+
   syncStatic();
   syncRe();
   renderMetrics();
@@ -431,6 +457,7 @@ export function createUI(store, actions) {
   return {
     tick() {
       renderMetrics();
+      updateInsight();
     },
     syncStatic,
     syncRe,

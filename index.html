@@ -126,6 +126,8 @@
                 <button class="shape-chip" data-preset="car" type="button">Car</button>
                 <button class="shape-chip shape-ghost" id="clear-mask" type="button">Clear</button>
                 <button class="shape-chip shape-toggle" id="vort-toggle" type="button" aria-pressed="false">Vorticity</button>
+                <button class="shape-chip shape-toggle" id="eq-toggle" type="button" aria-pressed="false">Equations</button>
+                <button class="shape-chip shape-demo" id="demo-start" type="button">▶ Auto demo</button>
               </div>
 
               <div class="lab-status">
@@ -161,10 +163,45 @@
                     <canvas id="gl3d-canvas" class="gl3d" hidden aria-label="3D wind tunnel view. Drag to orbit, scroll to zoom."></canvas>
                     <div id="build-chips" class="build-chips" hidden>
                       <span>BUILD</span>
-                      <button class="shape-chip is-active" data-build="wing" type="button">Wing</button>
+                      <button class="shape-chip is-active" data-build="sketch" type="button">Sketch</button>
+                      <button class="shape-chip" data-build="wing" type="button">Wing</button>
                       <button class="shape-chip" data-build="wall" type="button">Extrude</button>
                       <button class="shape-chip" data-build="revolve" type="button">Revolve</button>
                     </div>
+
+                    <div id="sketch-dock" class="sketch-dock" hidden>
+                      <div class="dock-pane">
+                        <span class="dock-label">SIDE VIEW · draw the profile</span>
+                        <canvas id="side-canvas" aria-label="Side view sketch"></canvas>
+                      </div>
+                      <div class="dock-pane" id="plan-pane">
+                        <span class="dock-label">TOP VIEW · draw the planform</span>
+                        <canvas id="plan-canvas" aria-label="Top view sketch"></canvas>
+                        <div class="dock-chips">
+                          <button class="shape-chip is-active" data-plan="straight" type="button">Straight</button>
+                          <button class="shape-chip" data-plan="tapered" type="button">Tapered</button>
+                          <button class="shape-chip" data-plan="swept" type="button">Swept</button>
+                          <button class="shape-chip" data-plan="delta" type="button">Delta</button>
+                          <button class="shape-chip" data-plan="ellipse" type="button">Ellipse</button>
+                          <button class="shape-chip shape-toggle" id="plan-sym" type="button" aria-pressed="true">Mirror</button>
+                          <button class="shape-chip shape-ghost" id="plan-clear" type="button">Clear</button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div id="eq-card" class="eq-card" hidden>
+                      <span class="eyebrow">What the solver is doing — no math required</span>
+                      <div class="eq-main">∂<b>u</b>/∂t + (<b>u</b>·∇)<b>u</b> = −∇p/ρ + ν∇²<b>u</b> &nbsp;&nbsp; ∇·<b>u</b> = 0</div>
+                      <ul class="eq-terms">
+                        <li><i>(u·∇)u</i> <span>Advection: wind carries itself along. Wind = <b id="eq-u">18.0</b> m/s</span></li>
+                        <li><i>ν∇²u</i> <span>Viscosity: air drags on air. ν = <b id="eq-nu">0.026</b> m²/s</span></li>
+                        <li><i>−∇p/ρ</i> <span>Pressure: pushes flow around your shape (the Jacobi solve).</span></li>
+                        <li><i>∇·u = 0</i> <span>Air can't pile up: the projection step enforces it.</span></li>
+                      </ul>
+                      <div class="eq-re">Reynolds number Re = U·L/ν = <b id="eq-re">692</b> → <b id="eq-regime">TRANSITIONAL</b></div>
+                    </div>
+
+                    <div id="demo-caption" class="demo-caption" hidden><span id="demo-step"></span><strong id="demo-text"></strong></div>
 
                     <div class="stage-tag stage-tag-top-left">AIR IN <span>→</span></div>
                     <div class="stage-tag stage-tag-top-right">OPEN OUTLET</div>
@@ -436,6 +473,11 @@
                   </div>
                 </div>
 
+                <div class="explain-card" id="explain-card">
+                  <span class="eyebrow">In plain language</span>
+                  <p id="explain-text">Waiting for the flow to settle…</p>
+                </div>
+
                 <div class="benchmark">
                   <button id="run-benchmark" class="benchmark-button" type="button">
                     <span id="bench-label">Run 5-second test</span>
@@ -571,9 +613,20 @@
                 <h2>Run the test. <em>Climb the board.</em></h2>
               </div>
               <p class="notes-intro" id="workshop-note">
-                Scores are kept in this browser. Join a class room to climb the same
-                board as everyone else.
+                Five seconds of averaged drag and lift becomes a score. 2D and 3D are ranked
+                separately. Join a class room to climb a private board, or use the shared one.
               </p>
+            </div>
+            <div class="board-controls">
+              <div class="lab-tabs" role="group" aria-label="Board dimension">
+                <button class="lab-tab is-active" data-board-dim="2D" type="button">2D board</button>
+                <button class="lab-tab" data-board-dim="3D" type="button">3D board</button>
+              </div>
+              <div class="lab-tabs" role="group" aria-label="Rank by">
+                <button class="lab-tab is-active" data-board-sort="efficiency" type="button">Score</button>
+                <button class="lab-tab" data-board-sort="ld" type="button">Lift / drag</button>
+              </div>
+              <span id="board-source" class="board-source" data-state="local">LOCAL</span>
             </div>
             <div class="workshop-grid">
               <div class="board-column">

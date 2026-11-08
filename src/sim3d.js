@@ -26,6 +26,8 @@ const CY = Int8Array.from(C, (c) => c[1]);
 const CZ = Int8Array.from(C, (c) => c[2]);
 const OFFSET = Int32Array.from(C, (c) => c[0] + c[1] * NX + c[2] * NX * NY);
 
+export const GRID = { NX, NY, NZ };
+
 const idx = (x, y, z) => x + y * NX + z * NX * NY;
 
 function feq(i, rho, ux, uy, uz) {
@@ -39,6 +41,9 @@ const BUCKETS = 7;
 const BUCKET_COLORS = [
   '40,90,170', '38,120,200', '36,160,215', '70,200,225', '150,225,225', '225,235,215', '255,244,200',
 ];
+// Vorticity palettes: counter-clockwise spin (ωz > 0) is warm, clockwise is cool.
+const VORT_POS = ['70,76,92', '120,80,84', '170,76,70', '220,80,56', '255,110,50', '255,160,60', '255,214,110'];
+const VORT_NEG = ['70,80,98', '64,96,140', '56,116,190', '50,140,235', '70,176,255', '130,214,255', '200,238,255'];
 
 export class Sim3D {
   constructor(canvas) {
@@ -66,6 +71,12 @@ export class Sim3D {
     this.pitch = 0.32;
     this.dist = 150;
     this.mode = 'wing';
+    this.plan = null;
+    this.vorticity = false;
+    this.wz = new Float32Array(N);
+    this.wm = new Float32Array(N);
+    this.far = new Float32Array(19);
+    this.vortTick = 0;
 
     this.px = new Float32Array(PARTICLES * TRAIL * 3);
     this.age = new Float32Array(PARTICLES);
@@ -89,6 +100,18 @@ export class Sim3D {
     this.cs = 0;
     this.samples = 0;
     this.history = [];
+  }
+
+  /** Top-view silhouette (NX*NZ, index x + z*NX). With build mode 'sketch' the body is side ∩ top. */
+  setPlanform(plan) {
+    this.plan = plan;
+  }
+
+  defaultPlan() {
+    const plan = new Uint8Array(NX * NZ);
+    const zc = (NZ - 1) / 2;
+    for (let z = 0; z < NZ; z += 1) for (let x = 0; x < NX; x += 1) plan[x + z * NX] = Math.abs(z - zc) <= NZ * 0.3 ? 1 : 0;
+    return plan;
   }
 
   /** Lift the 2D mask (bottom-up, w*h) into the voxel grid. */
@@ -132,6 +155,9 @@ export class Sim3D {
             const c1 = ry >= 0 && ry < NY ? cover[x + ry * NX] : 0;
             const c2 = ry2 >= 0 && ry2 < NY ? cover[x + ry2 * NX] : 0;
             on = Math.max(c1, c2) >= 0.5 && r <= NY / 2 - 1;
+          } else if (this.mode === 'sketch') {
+            if (!this.plan) this.plan = this.defaultPlan();
+            on = cover[x + y * NX] >= 0.5 && this.plan[x + z * NX] === 1;
           } else {
             on = cover[x + y * NX] >= 0.5 && Math.abs(z - zc) <= halfSpan;
           }
@@ -251,7 +277,7 @@ export class Sim3D {
     let fx = 0;
     let fy = 0;
     let links = 0;
-    const far = new Float32Array(19);
+    const far = this.far;
     for (let k = 0; k < 19; k += 1) far[k] = feq(k, 1, U, 0, 0);
 
     for (let z = 0; z < NZ; z += 1) {
@@ -318,6 +344,34 @@ export class Sim3D {
     if (this.samples % 6 === 0) {
       this.history.push(this.cd);
       if (this.history.length > 140) this.history.shift();
+    }
+  }
+
+  /** Vorticity ω = ∇×u by central differences (signed ωz drives colour, |ω| drives intensity). */
+  computeVorticity() {
+    const { ux, uy, uz, wz, wm, solid } = this;
+    for (let z = 1; z < NZ - 1; z += 1) {
+      for (let y = 1; y < NY - 1; y += 1) {
+        for (let x = 1; x < NX - 1; x += 1) {
+          const i = x + y * NX + z * NX * NY;
+          if (solid[i]) {
+            wz[i] = 0;
+            wm[i] = 0;
+            continue;
+          }
+          const dyZ = (ux[i + NX] - ux[i - NX]) * 0.5;
+          const dxY = (uy[i + 1] - uy[i - 1]) * 0.5;
+          const dzX = (ux[i + NX * NY] - ux[i - NX * NY]) * 0.5;
+          const dxZ = (uz[i + 1] - uz[i - 1]) * 0.5;
+          const dyZv = (uz[i + NX] - uz[i - NX]) * 0.5;
+          const dzY = (uy[i + NX * NY] - uy[i - NX * NY]) * 0.5;
+          const wx = dyZv - dzY;
+          const wy = dzX - dxZ;
+          const wzv = dxY - dyZ;
+          wz[i] = wzv;
+          wm[i] = Math.hypot(wx, wy, wzv);
+        }
+      }
     }
   }
 
@@ -453,7 +507,13 @@ export class Sim3D {
 
     // Split draw order: tracers behind the body first, then the body, then the rest.
     const bodyDepth = this.bodyDepth();
-    const buckets = Array.from({ length: BUCKETS }, () => []);
+    const vort = this.vorticity;
+    if (vort) {
+      this.vortTick += 1;
+      if (this.vortTick % 3 === 1) this.computeVorticity();
+    }
+    const nb = vort ? BUCKETS * 2 : BUCKETS;
+    const buckets = Array.from({ length: nb }, () => []);
     const U = this.inlet;
     for (let p = 0; p < PARTICLES; p += 1) {
       const base = p * TRAIL * 3;
@@ -461,15 +521,23 @@ export class Sim3D {
       const iy = Math.max(0, Math.min(NY - 1, Math.round(this.px[base + 1])));
       const iz = Math.max(0, Math.min(NZ - 1, Math.round(this.px[base + 2])));
       const i = idx(ix, iy, iz);
-      const sp = Math.hypot(this.ux[i], this.uy[i], this.uz[i]) / U;
-      const b = Math.max(0, Math.min(BUCKETS - 1, Math.floor((sp - 0.15) * 4.2)));
+      let b;
+      if (vort) {
+        const m = Math.min(1, this.wm[i] / (U * 0.14));
+        b = Math.min(BUCKETS - 1, Math.floor(m * BUCKETS)) + (this.wz[i] < 0 ? BUCKETS : 0);
+      } else {
+        const sp = Math.hypot(this.ux[i], this.uy[i], this.uz[i]) / U;
+        b = Math.max(0, Math.min(BUCKETS - 1, Math.floor((sp - 0.15) * 4.2)));
+      }
       buckets[b].push(p);
     }
     const drawTrails = (behind) => {
       ctx.lineCap = 'round';
-      for (let b = 0; b < BUCKETS; b += 1) {
-        ctx.strokeStyle = `rgba(${BUCKET_COLORS[b]},${behind ? 0.35 : 0.75})`;
-        ctx.lineWidth = (0.7 + b * 0.12) * dpr;
+      for (let b = 0; b < nb; b += 1) {
+        const level = b % BUCKETS;
+        const rgb = vort ? (b < BUCKETS ? VORT_POS : VORT_NEG)[level] : BUCKET_COLORS[b];
+        ctx.strokeStyle = `rgba(${rgb},${behind ? 0.35 : 0.75})`;
+        ctx.lineWidth = (0.7 + level * 0.12 + (vort ? 0.25 : 0)) * dpr;
         ctx.beginPath();
         let any = false;
         for (const p of buckets[b]) {
@@ -489,6 +557,22 @@ export class Sim3D {
       }
     };
     drawTrails(true);
+
+    // Vorticity slice: the ωz field on the mid-span plane, so wakes and shed vortices read at a glance.
+    if (vort) {
+      const zMid = Math.round((NZ - 1) / 2);
+      for (let y = 1; y < NY - 1; y += 1) {
+        for (let x = 1; x < NX - 1; x += 1) {
+          const i = idx(x, y, zMid);
+          const m = Math.min(1, Math.abs(this.wz[i]) / (U * 0.1));
+          if (m < 0.12) continue;
+          const pr = this.project(x, y, zMid);
+          const size = pr[3] * 1.05;
+          ctx.fillStyle = this.wz[i] > 0 ? `rgba(255,96,70,${m * 0.5})` : `rgba(70,150,255,${m * 0.5})`;
+          ctx.fillRect(pr[0] - size / 2, pr[1] - size / 2, size, size);
+        }
+      }
+    }
 
     // Body: painter's-sorted voxel faces.
     if (this.surface.length) {
@@ -521,7 +605,7 @@ export class Sim3D {
       ctx.strokeRect(ix, iy, iw, ih);
       ctx.fillStyle = 'rgba(160,210,220,0.8)';
       ctx.font = `${9 * dpr}px ui-monospace, monospace`;
-      ctx.fillText(`PROFILE · ${this.mode.toUpperCase()}`, ix, iy - 5 * dpr);
+      ctx.fillText(`PROFILE · ${this.mode.toUpperCase()}${vort ? ' · VORTICITY' : ''}`, ix, iy - 5 * dpr);
     }
   }
 

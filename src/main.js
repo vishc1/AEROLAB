@@ -10,6 +10,8 @@ import { createUI } from './ui.js';
 import { Sim3D } from './sim3d.js';
 import { CameraTracker } from './camera.js';
 import { createLeaderboard } from './leaderboard.js';
+import { SketchDock } from './sketch.js';
+import { createDemo } from './demo.js';
 import { createMissions } from './missions.js';
 import { createImpactPanel } from './impact.js';
 import { createShare } from './share.js';
@@ -43,6 +45,8 @@ let camera = null;
 let leaderboard = null;
 let modelImporter = null;
 let modelImporterLoading = null;
+let sketchDock = null;
+let autoName = null;
 let missions = null;
 let impact = null;
 let share = null;
@@ -98,6 +102,7 @@ function cancelBenchmark() {
 
 function rebuild3d() {
   if (!sim3d || store.state.dim !== '3d') return;
+  if (sketchDock) sim3d.setPlanform(sketchDock.plan);
   sim3d.setObstacle(mask.getCpuMask(), mask.width, mask.height, store.state.build);
 }
 
@@ -293,6 +298,30 @@ function init() {
     },
     onLost: clearFlow,
   });
+  sketchDock = new SketchDock({
+    mask,
+    store,
+    sideCanvas: document.getElementById('side-canvas'),
+    planCanvas: document.getElementById('plan-canvas'),
+    onChange: () => {
+      mask.upload();
+      if (store.state.preset !== 'custom') store.patch({ preset: 'custom' });
+      rebuild3d();
+      ui?.syncStatic();
+    },
+  });
+  document.querySelectorAll('[data-plan]').forEach((b) =>
+    b.addEventListener('click', () => {
+      document.querySelectorAll('[data-plan]').forEach((x) => x.classList.toggle('is-active', x === b));
+      sketchDock.applyPreset(b.dataset.plan);
+    }),
+  );
+  const symBtn = document.getElementById('plan-sym');
+  symBtn.addEventListener('click', () => {
+    sketchDock.symmetry = !sketchDock.symmetry;
+    symBtn.setAttribute('aria-pressed', String(sketchDock.symmetry));
+  });
+  document.getElementById('plan-clear').addEventListener('click', () => sketchDock.clearPlan());
   resizeCanvas();
   mask.bindInput(overlay, cursor, store);
 
@@ -339,6 +368,20 @@ function init() {
   });
   createTour();
   classroom = createClassroom();
+  createDemo({
+    store,
+    actions: {
+      setDim,
+      setInput,
+      setBuild,
+      selectPreset,
+      runBenchmark: startBenchmark,
+      syncUI: () => ui?.syncStatic(),
+      setAutoName: (n) => {
+        autoName = n;
+      },
+    },
+  });
 
   const resizeObserver = new ResizeObserver(resizeCanvas);
   resizeObserver.observe(stage);
@@ -447,7 +490,9 @@ function init() {
         sim3d.advect();
       }
       sim3d.resize();
-      sim3d.render(mask.canvas);
+      sim3d.vorticity = s.vorticity;
+      sketchDock.drawSide();
+      sim3d.render(null);
       if (captureRequests.length) {
         const url = document.getElementById('gl3d-canvas').toDataURL('image/png');
         captureRequests.splice(0).forEach((resolve) => resolve(url));
@@ -517,6 +562,7 @@ function init() {
           cl,
           dim: s.dim.toUpperCase(),
           label: labelFor(s),
+          name: autoName || undefined,
           context: {
             metrics: { cd, cl, ld, re: s.metrics.re, regime: s.metrics.regime, road: roadImpact(cd) },
             context: {
@@ -530,7 +576,8 @@ function init() {
           },
         });
         missions.onTestComplete({ input: s.input, cd, cl });
-        classroom.submit({ design: labelFor(s), cd, cl, score: efficiency(cd, cl) });
+        classroom.submit({ design: labelFor(s), cd, cl, score: efficiency(cd, cl, s.dim.toUpperCase()) });
+        autoName = null;
       } else {
         store.patch({
           benchmark: { running: true, done: false, progress, cd: 0, cl: 0 },

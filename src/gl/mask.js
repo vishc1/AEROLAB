@@ -269,6 +269,25 @@ export class MaskEditor {
     return this.cpuMask;
   }
 
+  /** Programmatic stroke in normalised top-down coordinates (used by the 3D sketch dock). */
+  stroke(x0, y0, x1, y1, radius, erase = false) {
+    const { ctx, width, height } = this;
+    ctx.globalCompositeOperation = 'source-over';
+    const color = erase ? '#000' : '#fff';
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = radius * 2;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(x0 * width, y0 * height);
+    ctx.lineTo(x1 * width, y1 * height);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(x1 * width, y1 * height, radius, 0, Math.PI * 2);
+    ctx.fill();
+    this.markDirty();
+  }
+
   bindInput(overlay, cursor, store) {
     let drawing = false;
     let erase = false;

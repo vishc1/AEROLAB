@@ -206,3 +206,25 @@ The headless Chrome executable path is configured for macOS in each script.
   telemetry is a relative comparison tool, not a validated CFD result.
 - Tailwind v4 is loaded through `@tailwindcss/vite`; the editorial UI itself is
   hand-written CSS in `src/style.css`.
+
+
+## Hackathon features
+
+CFD without the math: draw a shape, see the physics, get a score.
+
+- **3D sketching**: side-profile and top-view editors beside the 3D tunnel (Sketch build mode); the solid is the intersection of both silhouettes and rebuilds live. Presets: straight, tapered, swept, delta, ellipse; mirror toggle.
+- **Vorticity**: 2D overlay, and in 3D tracers coloured by spin (red/blue) plus a mid-span slice.
+- **Plain language**: "In plain language" card (Re regime, drag/lift verdict), and an **Equations** overlay with live U, nu and Re.
+- **Compare / export**: pin a baseline and see deltas; Snapshot PNG; Results CSV.
+- **Leaderboard**: separate 2D and 3D boards, ranked by score or lift/drag, inline name field. Scores are recomputed on the server from Cd/Cl, so they cannot be forged.
+- **Guided demo**: press "Auto demo" or open `/?demo=1` (about 45 s: cylinder, airfoil test, vorticity, 3D wing, car). Esc stops it.
+
+### Shared leaderboard
+
+The board is served by `server/scores-api.mjs` (JSON file in `server/data/`).
+
+- `npm run dev` / `npm run preview`: the API is mounted automatically. Run with `--host` and everyone on the LAN shares one board.
+- `npm run serve`: builds and serves `dist/` plus the API on `PORT` (default 8787).
+- A static-only host cannot run the API, so the board falls back to **LOCAL** (this browser). Point `VITE_LEADERBOARD_URL` at a running server at build time to share it.
+
+Tests: `npx vite --port 5190`, then `npm run test:hackathon`.

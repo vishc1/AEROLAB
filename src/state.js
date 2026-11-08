@@ -77,7 +77,7 @@ export function createStore() {
     preset: 'airfoil',
     dim: '2d',
     input: 'draw',
-    build: 'wing',
+    build: 'sketch',
     vorticity: false,
     running: true,
     fps: 60,
