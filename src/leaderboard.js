@@ -46,6 +46,40 @@ async function request(path, options) {
   }
 }
 
+/**
+ * Ask the AI coach (a serverless function backed by Claude) to explain this
+ * specific result. Silently keeps the rule-based text when the endpoint is
+ * missing, unconfigured or slow.
+ */
+async function askCoach(context, runId) {
+  if (!context) return;
+  const slot = document.getElementById('coach-ai');
+  if (!slot) return;
+  slot.hidden = false;
+  slot.dataset.state = 'loading';
+  slot.textContent = 'Asking the coach…';
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 20000);
+    const response = await fetch('/api/coach', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(context),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    if (!response.ok) throw new Error(`coach ${response.status}`);
+    const data = await response.json();
+    const current = document.getElementById('coach-ai');
+    if (!current || !data?.text) throw new Error('empty');
+    current.dataset.state = 'done';
+    current.innerHTML = `<b>AI coach</b> ${escapeHtml(data.text)}`;
+  } catch {
+    const current = document.getElementById('coach-ai');
+    if (current) current.hidden = true;
+  }
+}
+
 export function createLeaderboard() {
   const board = document.getElementById('leaderboard');
   const coach = document.getElementById('coach-card');
@@ -116,7 +150,15 @@ export function createLeaderboard() {
     const form = p.submitted
       ? `<p class="coach-saved">Saved to the ${ui.source === 'live' ? 'shared' : 'local'} ${p.dim} board.</p>`
       : `<form class="name-form" id="name-form"><input id="name-input" maxlength="24" autocomplete="off" placeholder="${escapeHtml(p.fallback)}" aria-label="Design name" /><button type="submit" class="shape-chip is-active">Save to board</button></form>`;
-    coach.innerHTML = `<span class="coach-icon">✦</span><p class="eyebrow">Flow coach · ${p.dim} run</p><div class="score-badge">${p.score.toFixed(0)}<small>/100</small></div><h3>${escapeHtml(p.name || 'Name your design')}</h3><p>${p.insight}</p><p class="coach-ld">L/D ${p.ld.toFixed(2)} · Cd ${p.cd.toFixed(3)} · Cl ${p.cl.toFixed(3)}</p>${form}`;
+    const prevAi = coach.querySelector('#coach-ai');
+    const keep = prevAi && !prevAi.hidden ? { html: prevAi.innerHTML, state: prevAi.dataset.state } : null;
+    coach.innerHTML = `<span class="coach-icon">✦</span><p class="eyebrow">Flow coach · ${p.dim} run</p><div class="score-badge">${p.score.toFixed(0)}<small>/100</small></div><h3>${escapeHtml(p.name || 'Name your design')}</h3><p>${p.insight}</p><p class="coach-ai" id="coach-ai" hidden></p><p class="coach-ld">L/D ${p.ld.toFixed(2)} · Cd ${p.cd.toFixed(3)} · Cl ${p.cl.toFixed(3)}</p>${form}`;
+    if (keep) {
+      const ai = coach.querySelector('#coach-ai');
+      ai.hidden = false;
+      ai.innerHTML = keep.html;
+      ai.dataset.state = keep.state;
+    }
     const f = coach.querySelector('#name-form');
     if (f) {
       f.addEventListener('submit', (e) => {
@@ -129,7 +171,7 @@ export function createLeaderboard() {
 
   const api = {
     /** Finish a 5-second test. Shows the inline name form (or auto-saves when `name` is given). */
-    record({ cd, cl, dim, name }) {
+    record({ cd, cl, dim, name, label, context }) {
       const d = normaliseDim(dim);
       const prior = loadLocal().filter((s) => s.dim === d).length;
       ui.pending = {
@@ -137,12 +179,14 @@ export function createLeaderboard() {
         score: efficiency(cd, cl, d),
         ld: liftToDrag(cd, cl),
         insight: explain(cd, cl, d),
-        fallback: `Prototype ${prior + 1}`,
+        fallback: `${label || 'Prototype'} #${prior + 1}`,
+        context,
         name: '',
       };
       ui.dim = d;
       render();
       renderCoach();
+      askCoach(context, Date.now());
       if (name) return api.submit(name);
       return Promise.resolve();
     },

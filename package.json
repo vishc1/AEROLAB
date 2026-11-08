@@ -34,8 +34,10 @@
     "vite": "^8.3.6"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.6.0",
     "@google/model-viewer": "^4.4.0",
     "@mediapipe/tasks-vision": "^1.2.2",
+    "@vercel/blob": "^2.8.2",
     "three": "^0.183.2"
   }
 }

@@ -12,7 +12,14 @@ import { CameraTracker } from './camera.js';
 import { createLeaderboard } from './leaderboard.js';
 import { SketchDock } from './sketch.js';
 import { createDemo } from './demo.js';
-import { liftToDrag } from './scoring.js';
+import { createMissions } from './missions.js';
+import { createImpactPanel } from './impact.js';
+import { createShare } from './share.js';
+import { createReport } from './report.js';
+import { createTour } from './tour.js';
+import { createClassroom } from './classroom.js';
+import { efficiency } from './leaderboard.js';
+import { roadImpact } from './impact.js';
 
 const store = createStore();
 
@@ -40,8 +47,24 @@ let modelImporter = null;
 let modelImporterLoading = null;
 let sketchDock = null;
 let autoName = null;
-let exportPending = false;
-let baseline = null;
+let missions = null;
+let impact = null;
+let share = null;
+let report = null;
+let classroom = null;
+let captureRequests = [];
+
+/** Resolves with a PNG data URL of the next rendered tunnel frame. */
+function captureFrame() {
+  return new Promise((resolve) => captureRequests.push(resolve));
+}
+
+function labelFor(s) {
+  if (s.input === 'camera') return 'Camera shape';
+  if (s.input === 'model') return 'Blender model';
+  if (s.preset === 'custom') return 'Custom shape';
+  return s.preset.charAt(0).toUpperCase() + s.preset.slice(1);
+}
 
 const EMPTY_BENCHMARK = { running: false, done: false, progress: 0, cd: 0, cl: 0 };
 
@@ -247,52 +270,6 @@ function resetSimulation() {
   ui?.syncStatic();
 }
 
-function download(blob, filename) {
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
-}
-
-function setupReports() {
-  document.getElementById('export-png').addEventListener('click', () => {
-    exportPending = true;
-  });
-  document.getElementById('export-csv').addEventListener('click', () => {
-    const s = store.state;
-    const m = s.metrics;
-    const row = [
-      s.dim, s.preset, s.windSpeed, s.viscosity, m.re.toFixed(1), m.regime,
-      m.cd.toFixed(4), m.cl.toFixed(4), m.fd.toFixed(4), m.fl.toFixed(4), liftToDrag(m.cd, m.cl).toFixed(3),
-    ];
-    const csv = 'dim,shape,wind_mps,viscosity,reynolds,regime,cd,cl,drag_n,lift_n,lift_to_drag\n' + row.join(',') + '\n';
-    download(new Blob([csv], { type: 'text/csv' }), `aerolab-results-${Date.now()}.csv`);
-  });
-  const body = document.getElementById('compare-body');
-  document.getElementById('pin-baseline').addEventListener('click', () => {
-    const m = store.state.metrics;
-    baseline = { cd: m.cd, cl: m.cl, ld: liftToDrag(m.cd, m.cl), dim: store.state.dim };
-  });
-  setInterval(() => {
-    if (!baseline) return;
-    const m = store.state.metrics;
-    const ld = liftToDrag(m.cd, m.cl);
-    const d = (now, then, lowerIsBetter, digits = 3) => {
-      const diff = now - then;
-      const better = lowerIsBetter ? diff < 0 : diff > 0;
-      const cls = Math.abs(diff) < 1e-3 ? '' : better ? 'cmp-down' : 'cmp-up';
-      return `<span class="${cls}">${diff >= 0 ? '+' : ''}${diff.toFixed(digits)}</span>`;
-    };
-    body.innerHTML =
-      `<div class="cmp-row"><span>Drag Cd</span><span>${baseline.cd.toFixed(3)} → ${m.cd.toFixed(3)} ${d(m.cd, baseline.cd, true)}</span></div>` +
-      `<div class="cmp-row"><span>Lift Cl</span><span>${baseline.cl.toFixed(3)} → ${m.cl.toFixed(3)} ${d(m.cl, baseline.cl, false)}</span></div>` +
-      `<div class="cmp-row"><span>L/D</span><span>${baseline.ld.toFixed(2)} → ${ld.toFixed(2)} ${d(ld, baseline.ld, false, 2)}</span></div>`;
-  }, 400);
-}
-
 function init() {
   gl = createContext(canvas);
   quad = new FullscreenQuad(gl);
@@ -359,7 +336,38 @@ function init() {
     setBuild,
   });
 
-  setupReports();
+  missions = createMissions(store, {
+    setDim,
+    setInput,
+    selectPreset,
+    syncStatic: () => ui?.syncStatic(),
+  });
+  impact = createImpactPanel(store, { mask, labelFor });
+  share = createShare(store, {
+    mask,
+    labelFor,
+    setBaseline: (b) => impact.setBaseline(b),
+    applyShared: (sharedCanvas) => {
+      if (store.state.input !== 'draw') setInput('draw');
+      store.patch({ preset: 'custom', tool: 'draw' });
+      mask.clear();
+      mask.ctx.globalCompositeOperation = 'source-over';
+      mask.ctx.imageSmoothingEnabled = true;
+      mask.ctx.drawImage(sharedCanvas, 0, 0, mask.width, mask.height);
+      mask.markDirty();
+      mask.upload();
+      clearFlow();
+      ui?.syncStatic();
+    },
+  });
+  report = createReport(store, {
+    captureFrame,
+    labelFor,
+    missionsDone: () => missions.done.length,
+    baseline: () => impact.baseline,
+  });
+  createTour();
+  classroom = createClassroom();
   createDemo({
     store,
     actions: {
@@ -415,7 +423,34 @@ function init() {
     get modelImporter() {
       return modelImporter;
     },
+    get missions() {
+      return missions;
+    },
+    get impact() {
+      return impact;
+    },
+    get share() {
+      return share;
+    },
+    get report() {
+      return report;
+    },
+    get classroom() {
+      return classroom;
+    },
+    captureFrame,
   };
+
+  // A shared design in the URL replaces the default airfoil.
+  const loadShared = () => {
+    try {
+      share.loadFromHash();
+    } catch (error) {
+      console.warn('Could not load shared design', error);
+    }
+  };
+  loadShared();
+  window.addEventListener('hashchange', loadShared);
 
   let last = performance.now();
   let frameMs = 16.7;
@@ -458,6 +493,10 @@ function init() {
       sim3d.vorticity = s.vorticity;
       sketchDock.drawSide();
       sim3d.render(null);
+      if (captureRequests.length) {
+        const url = document.getElementById('gl3d-canvas').toDataURL('image/png');
+        captureRequests.splice(0).forEach((resolve) => resolve(url));
+      }
       if (now - lastMetric > 60) {
         lastMetric = now;
         const re = computeRe(s.windSpeed, s.viscosity);
@@ -487,12 +526,10 @@ function init() {
       telemetry.poll(fluid, store);
       renderer.vorticity = s.vorticity;
       renderer.render(fluid, particles, params);
-    }
-
-    if (exportPending) {
-      exportPending = false;
-      const src = s.dim === '3d' ? document.getElementById('gl3d-canvas') : canvas;
-      src.toBlob((blob) => blob && download(blob, `aerolab-${s.dim}-${Date.now()}.png`), 'image/png');
+      if (captureRequests.length) {
+        const url = canvas.toDataURL('image/png');
+        captureRequests.splice(0).forEach((resolve) => resolve(url));
+      }
     }
 
     frameMs += (rawSeconds * 1000 - frameMs) * 0.08;
@@ -512,7 +549,34 @@ function init() {
           benchmark: { running: false, done: true, progress: 1, cd, cl },
         });
         benchmark = null;
-        leaderboard.record({ cd, cl, dim: s.dim.toUpperCase(), name: autoName || undefined });
+        const ld = Math.abs(cd) > 0.001 ? cl / cd : 0;
+        const thumbCanvas = document.createElement('canvas');
+        thumbCanvas.width = 264;
+        thumbCanvas.height = 132;
+        const tctx = thumbCanvas.getContext('2d');
+        tctx.fillStyle = '#07100f';
+        tctx.fillRect(0, 0, 264, 132);
+        tctx.drawImage(mask.canvas, 0, 0, 264, 132);
+        leaderboard.record({
+          cd,
+          cl,
+          dim: s.dim.toUpperCase(),
+          label: labelFor(s),
+          name: autoName || undefined,
+          context: {
+            metrics: { cd, cl, ld, re: s.metrics.re, regime: s.metrics.regime, road: roadImpact(cd) },
+            context: {
+              label: labelFor(s),
+              dim: s.dim.toUpperCase(),
+              input: s.input,
+              mission: missions.active?.mission.title || null,
+              baseline: impact.baseline ? { name: impact.baseline.name, cd: impact.baseline.cd } : null,
+            },
+            thumb: thumbCanvas.toDataURL('image/png'),
+          },
+        });
+        missions.onTestComplete({ input: s.input, cd, cl });
+        classroom.submit({ design: labelFor(s), cd, cl, score: efficiency(cd, cl, s.dim.toUpperCase()) });
         autoName = null;
       } else {
         store.patch({
@@ -528,6 +592,8 @@ function init() {
 
     if (now - lastUi > 50) {
       ui.tick();
+      missions.tick();
+      impact.tick();
       lastUi = now;
     }
   };

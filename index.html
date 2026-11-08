@@ -9,6 +9,15 @@
       content="AEROLAB — a real-time WebGL2 wind tunnel. Draw a shape, watch the air answer."
     />
     <meta name="theme-color" content="#07100f" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="AEROLAB — a wind tunnel in a browser tab" />
+    <meta property="og:description" content="Draw a shape or hold one up to the camera, watch a GPU fluid solver reveal the wake, and learn why. Five missions, drag in litres of fuel, shareable designs." />
+    <meta property="og:image" content="https://slipstream-indol.vercel.app/og.jpg" />
+    <meta property="og:url" content="https://slipstream-indol.vercel.app/" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="AEROLAB — a wind tunnel in a browser tab" />
+    <meta name="twitter:description" content="A real-time wind tunnel for things you make. Guided missions, drag as fuel and CO₂, AI coach, class leaderboards." />
+    <meta name="twitter:image" content="https://slipstream-indol.vercel.app/og.jpg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -67,15 +76,16 @@
             </div>
             <div class="hero-side">
               <p>
-                Test a hand, a physical prototype, or a Blender design in seconds.
-                Watch its wake, compare its score, then place the 3D model in your
-                world with AR — all from the browser.
+                A real wind tunnel costs more than a classroom. This one runs in a
+                browser tab: test a hand, a paper prototype, or a Blender design,
+                learn why the air behaves that way, and see what the drag would cost
+                on the road.
               </p>
               <div class="hero-meta">
                 <span>2D GPU · 3D LATTICE-BOLTZMANN</span>
                 <span>MEDIAPIPE HAND TRACKING</span>
                 <span>BLENDER → AR</span>
-                <span>60 FPS TARGET</span>
+                <span>5 GUIDED MISSIONS</span>
               </div>
               <button id="quick-upload" class="hero-upload" type="button">
                 <span>Upload an object or image</span><b>.GLB / PNG / JPG ↗</b>
@@ -196,6 +206,37 @@
                     <div class="stage-tag stage-tag-top-left">AIR IN <span>→</span></div>
                     <div class="stage-tag stage-tag-top-right">OPEN OUTLET</div>
                     <div class="stage-mode" id="stage-mode">NACA 0012 · AoA 4.5°</div>
+
+                    <div id="mission-hud" class="mission-hud" hidden data-phase="settle">
+                      <div class="mission-hud-head">
+                        <span id="mission-hud-index">MISSION 01</span>
+                        <strong id="mission-hud-title">Streamline the cylinder</strong>
+                        <button id="mission-quit" class="mission-hud-close" type="button" aria-label="Leave mission">×</button>
+                      </div>
+                      <div class="mission-hud-row">
+                        <span id="mission-hud-target">Cd below 0.60</span>
+                        <b id="mission-hud-value">Measuring baseline…</b>
+                      </div>
+                      <div class="mission-hud-track"><i id="mission-hud-bar"></i></div>
+                      <p id="mission-hud-text"></p>
+                      <button id="mission-next" class="mission-hud-next" type="button" hidden>Next mission</button>
+                    </div>
+
+                    <div id="share-banner" class="share-banner" hidden>
+                      <span class="eyebrow">Shared design</span>
+                      <b id="share-banner-text">Teardrop · Cd 0.412. Sculpt it, pin it, beat it.</b>
+                      <button id="share-banner-close" class="mission-hud-close" type="button" aria-label="Dismiss">×</button>
+                    </div>
+
+                    <div id="tour" class="tour" hidden>
+                      <span id="tour-step" class="tour-step">1 / 3</span>
+                      <strong id="tour-title">Drag on the tunnel to sculpt</strong>
+                      <p id="tour-text">Cream is solid. Shift-drag erases.</p>
+                      <div class="tour-actions">
+                        <button id="tour-skip" class="text-button" type="button">Skip</button>
+                        <button id="tour-next" class="tour-next" type="button">Next</button>
+                      </div>
+                    </div>
 
                     <div class="stage-bottom-left">
                       <div class="legend-block">
@@ -375,6 +416,7 @@
               </div>
 
               <aside class="metrics-rail" aria-label="Aerodynamic telemetry">
+                <div class="rail-scroll">
                 <div class="metric-block metric-drag">
                   <div class="metric-label">
                     <span>Relative drag</span>
@@ -399,14 +441,6 @@
                   </div>
                 </div>
 
-                <div class="rail-chart">
-                  <div class="rail-heading">
-                    <span>Force history</span>
-                    <span class="chart-live"><i></i> LIVE</span>
-                  </div>
-                  <div class="chart-wrap"><canvas id="cd-chart"></canvas></div>
-                  <div class="chart-axis"><span>−14 s</span><span>now</span></div>
-                </div>
 
                 <div class="rail-stats">
                   <div class="rail-stat">
@@ -427,25 +461,21 @@
                   </div>
                 </div>
 
-                <div class="rail-detail">
-                  <span>Ref. length <b id="ref-length">0.620</b></span>
-                  <span>Surface samples <b id="boundary-count">0</b></span>
-                  <span>Iterations <b id="iter-count">38</b></span>
+                <div class="rail-impact">
+                  <div class="rail-heading">
+                    <span>At road speed</span>
+                    <span class="rail-hint">car · 100 km/h · drag share</span>
+                  </div>
+                  <div class="impact-grid">
+                    <div><strong id="impact-power">—</strong><span>kW to push air</span></div>
+                    <div><strong id="impact-fuel">—</strong><span>L / 100 km</span></div>
+                    <div><strong id="impact-co2">—</strong><span>g CO₂ / km</span></div>
+                  </div>
                 </div>
 
                 <div class="explain-card" id="explain-card">
                   <span class="eyebrow">In plain language</span>
                   <p id="explain-text">Waiting for the flow to settle…</p>
-                </div>
-
-                <div class="compare-card" id="compare-card">
-                  <div class="rail-heading"><span>Compare</span><button id="pin-baseline" class="shape-chip" type="button">Pin current as baseline</button></div>
-                  <div id="compare-body" class="compare-body">Pin a design, change the shape, and see the exact change in drag and lift.</div>
-                </div>
-
-                <div class="export-row">
-                  <button id="export-png" class="shape-chip" type="button">Snapshot PNG</button>
-                  <button id="export-csv" class="shape-chip" type="button">Results CSV</button>
                 </div>
 
                 <div class="benchmark">
@@ -457,6 +487,51 @@
                   </button>
                   <div class="benchmark-track"><i id="bench-progress"></i></div>
                   <div class="benchmark-note" id="bench-note">Average pressure integral over five seconds.</div>
+                  <div class="benchmark-actions">
+                    <button id="share-design" class="shape-chip" type="button">Share design</button>
+                    <button id="export-report" class="shape-chip" type="button">Export report</button>
+                  </div>
+                </div>
+
+                <div class="rail-compare">
+                  <div class="rail-heading">
+                    <span>Compare</span>
+                    <span class="compare-actions">
+                      <button id="clear-baseline" class="text-button" type="button" hidden>Unpin</button>
+                      <button id="pin-baseline" class="pin-button" type="button">Pin as baseline</button>
+                    </span>
+                  </div>
+                  <div id="compare-body" class="compare-body">
+                    <p class="compare-empty">Pin the current shape, then sculpt. The drag change and fuel saved show here.</p>
+                    <div class="compare-card">
+                      <img id="baseline-thumb" alt="Pinned baseline silhouette" />
+                      <div class="compare-meta">
+                        <span id="baseline-name">Cylinder</span>
+                        <small>Cd <b id="baseline-cd">0.000</b></small>
+                      </div>
+                      <div class="compare-result">
+                        <strong id="compare-delta" class="compare-delta">—</strong>
+                        <span id="compare-note">drag vs baseline</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="rail-chart">
+                  <div class="rail-heading">
+                    <span>Force history</span>
+                    <span class="chart-live"><i></i> LIVE</span>
+                  </div>
+                  <div class="chart-wrap"><canvas id="cd-chart"></canvas></div>
+                  <div class="chart-axis"><span>−14 s</span><span>now</span></div>
+                </div>
+
+                <div class="rail-detail">
+                  <span>Ref. length <b id="ref-length">0.620</b></span>
+                  <span>Surface samples <b id="boundary-count">0</b></span>
+                  <span>Iterations <b id="iter-count">38</b></span>
+                </div>
+
                 </div>
               </aside>
             </div>
@@ -507,6 +582,15 @@
                 <div class="range-scale"><span>256 × 128</span><span>512 × 256</span></div>
               </div>
             </div>
+
+            <div class="mission-dock" aria-label="Missions">
+              <div class="mission-dock-head">
+                <span class="eyebrow">Learn by doing</span>
+                <b id="mission-count">0 / 5</b>
+              </div>
+              <div id="mission-chips" class="mission-chips" role="group" aria-label="Missions"></div>
+              <p id="mission-brief" class="mission-brief"></p>
+            </div>
           </section>
 
           <section class="experience-strip" aria-label="From prototype to proof">
@@ -517,7 +601,7 @@
             <div class="experience-steps">
               <article><b>01</b><span>CAPTURE</span><p>Pick a real object color or let MediaPipe track your hand.</p></article>
               <article><b>02</b><span>SIMULATE</span><p>Watch the GPU resolve pressure, wake and signed vortices live.</p></article>
-              <article><b>03</b><span>COMPARE</span><p>Run a repeatable five-second test and climb the local board.</p></article>
+              <article><b>03</b><span>COMPARE</span><p>Pin a baseline, cut its drag, and read the saving in litres and CO₂.</p></article>
               <article><b>04</b><span>MAKE IT REAL</span><p>Import a Blender model, test three projections, then launch AR.</p></article>
             </div>
           </section>
@@ -528,9 +612,9 @@
                 <span class="eyebrow">Workshop</span>
                 <h2>Run the test. <em>Climb the board.</em></h2>
               </div>
-              <p class="notes-intro">
-                Five seconds of averaged drag and lift becomes a score.
-                The board is shared with everyone on this host; 2D and 3D are ranked separately.
+              <p class="notes-intro" id="workshop-note">
+                Five seconds of averaged drag and lift becomes a score. 2D and 3D are ranked
+                separately. Join a class room to climb a private board, or use the shared one.
               </p>
             </div>
             <div class="board-controls">
@@ -545,13 +629,78 @@
               <span id="board-source" class="board-source" data-state="local">LOCAL</span>
             </div>
             <div class="workshop-grid">
-              <div id="leaderboard" class="leaderboard"></div>
+              <div class="board-column">
+                <div id="room-bar" class="room-bar">
+                  <form id="room-join" class="room-join">
+                    <span class="eyebrow">Class room</span>
+                    <input id="room-code" type="text" inputmode="text" autocomplete="off" maxlength="8" placeholder="Room code" aria-label="Room code" />
+                    <button class="shape-chip" type="submit">Join</button>
+                    <button id="room-create" class="shape-chip shape-chip-strong" type="button">Create a room</button>
+                  </form>
+                  <div id="room-active" class="room-active" hidden>
+                    <span class="eyebrow">Class room</span>
+                    <b id="room-active-code">ABCD</b>
+                    <small id="room-active-count">0 runs</small>
+                    <button id="room-copy" class="shape-chip" type="button">Copy invite</button>
+                    <button id="room-leave" class="shape-chip" type="button">Leave</button>
+                  </div>
+                  <label class="room-name">
+                    <span>Your name</span>
+                    <input id="room-name" type="text" maxlength="32" autocomplete="nickname" placeholder="Shown on the board" />
+                  </label>
+                  <div id="room-status" class="room-status" data-state=""></div>
+                </div>
+                <div id="room-board" class="leaderboard" hidden></div>
+                <div id="leaderboard" class="leaderboard"></div>
+              </div>
               <div id="coach-card" class="coach-card">
                 <span class="coach-icon">✦</span>
                 <p class="eyebrow">Flow coach</p>
                 <h3>Waiting for a run</h3>
                 <p>Run a five-second test and the coach explains what your shape did to the air.</p>
               </div>
+            </div>
+          </section>
+
+          <section class="classroom" aria-label="In the classroom">
+            <div class="workshop-head">
+              <div>
+                <span class="eyebrow">In the classroom</span>
+                <h2>Three lessons, <em>zero hardware.</em></h2>
+              </div>
+              <p class="notes-intro">
+                Runs on a Chromebook, needs no account or install, and camera frames never
+                leave the device. Each lesson is a 45-minute block built on the missions.
+              </p>
+            </div>
+            <div class="lesson-grid">
+              <article class="lesson">
+                <span class="lesson-tag">Grades 6–8 · Forces</span>
+                <h3>Why do cars have tails?</h3>
+                <p>Students streamline a cylinder, then cut a car's drag by a fifth, and read the result in litres of fuel. Ends with a class leaderboard.</p>
+                <ul>
+                  <li>Missions 01 and 03</li>
+                  <li>NGSS MS-PS2-2 · MS-ETS1-4</li>
+                </ul>
+              </article>
+              <article class="lesson">
+                <span class="lesson-tag">Grades 9–12 · Fluids</span>
+                <h3>What holds up a wing?</h3>
+                <p>From a flat plate to a lifting body. Students explain lift as deflected air, then chase lift-to-drag like an aircraft designer.</p>
+                <ul>
+                  <li>Mission 02 · Card preset · Vorticity view</li>
+                  <li>NGSS HS-PS2-1 · HS-ETS1-3</li>
+                </ul>
+              </article>
+              <article class="lesson">
+                <span class="lesson-tag">Grades 9–12 · Modelling</span>
+                <h3>Honey, air and the Reynolds number</h3>
+                <p>Same cylinder, different fluid. Students watch the vortex street vanish as viscosity rises, then test a real object from their desk.</p>
+                <ul>
+                  <li>Missions 04 and 05</li>
+                  <li>NGSS HS-PS2-1 · Science practices 2, 4</li>
+                </ul>
+              </article>
             </div>
           </section>
 
@@ -695,6 +844,19 @@
               then normalizes to <code>C<sub>d</sub></code> and
               <code>C<sub>l</sub></code> against the body's reference length. UI metrics
               update at 20 Hz independently of the 60 FPS render loop.
+            </p>
+          </section>
+          <section>
+            <span class="modal-num">08</span>
+            <h3>Missions and the road panel</h3>
+            <p>
+              Each mission loads a shape, waits for the force signal to stabilise, then
+              records a baseline and watches the live telemetry until the target holds for
+              about a second. The road panel scales the relative <code>C<sub>d</sub></code>
+              onto a mid-size car (frontal area 2.2 m², air 1.2 kg/m³) at 100 km/h:
+              <code>P = ½ρv³C<sub>d</sub>A</code>, converted to petrol at 34.2 MJ/L and 25%
+              tank-to-wheel efficiency, and to CO₂ at 2.31 kg/L. It is the drag share only,
+              for comparing shapes, not a certified consumption figure.
             </p>
           </section>
         </div>
