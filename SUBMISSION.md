@@ -20,6 +20,7 @@ Every physics class explains drag and lift with a diagram. Almost none can show 
 - **Drag as fuel.** The road panel scales the measured drag coefficient onto a car at 100 km/h and reports kW, litres per 100 km and grams of CO₂ per km. Pin a baseline and every edit shows the litres saved.
 - **AI flow coach.** After each five-second test, Claude reads the numbers and the silhouette and explains, in two sentences a 14-year-old can use, what the air did and one change to try.
 - **Class rooms.** A four-letter code puts a whole class on one live leaderboard. Share any design as a 200-character link that pins it as the baseline to beat. Export a report card PNG.
+- A physics primer page (`/physics.html`) that explains drag, wakes, lift, Reynolds number, vorticity, the solver and the drag-to-fuel chain, each tied to the control that shows it, so students and judges can check the science.
 
 ## How we built it
 

@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta
+      name="description"
+      content="The physics behind AEROLAB: drag, wakes, lift, Reynolds number, vorticity, the Navier–Stokes solver and why drag costs fuel. A primer for students and judges."
+    />
+    <meta name="theme-color" content="#07100f" />
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="The physics behind AEROLAB" />
+    <meta property="og:description" content="Seven ideas, one wind tunnel. Drag, wakes, lift, Reynolds number, vorticity, the solver, and why drag costs fuel." />
+    <meta property="og:image" content="https://slipstream-indol.vercel.app/og.jpg" />
+    <meta property="og:url" content="https://slipstream-indol.vercel.app/physics.html" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/src/physics.css" />
+    <title>AEROLAB — the physics</title>
+  </head>
+  <body>
+    <div class="page">
+      <header class="site-header">
+        <a class="brand" href="/" aria-label="Back to the wind tunnel">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 42 24" fill="none">
+              <path d="M2 6.5h21c5.2 0 7.6-2.2 12-2.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              <path d="M2 12h29.5c3.2 0 5.2.8 8.5 1.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              <path d="M2 17.5h13.5c5.6 0 8.4 2.4 14.5 2.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity=".58"/>
+            </svg>
+          </span>
+          <span class="brand-type">
+            <span class="wordmark">AEROLAB</span>
+            <span class="brand-sub">Physics primer</span>
+          </span>
+        </a>
+        <nav class="header-nav" aria-label="Sections">
+          <a href="#concepts">Concepts</a>
+          <a href="#numbers">Numbers</a>
+          <a href="#questions">Judge Q&amp;A</a>
+          <a href="#limits">Limits</a>
+          <a href="#pitch">Pitch</a>
+        </nav>
+        <a class="text-button" href="/">
+          Open the tunnel
+          <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+            <path d="M6 3.5h6.5V10M12 4 4 12" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+          </svg>
+        </a>
+      </header>
+
+      <main>
+        <section class="hero">
+          <span class="eyebrow">What the tunnel is actually computing</span>
+          <h1>Seven ideas,<br /><em>one wind tunnel.</em></h1>
+          <p class="lede">
+            Everything AEROLAB shows on screen comes from a handful of physical ideas.
+            Each one below has the equation, the plain-words version, where to point at
+            it in the app, and the one sentence worth saying out loud.
+          </p>
+          <ol class="toc" aria-label="Concepts">
+            <li><a href="#drag"><b>01</b> Drag &amp; C<sub>d</sub></a></li>
+            <li><a href="#wake"><b>02</b> Pressure &amp; the wake</a></li>
+            <li><a href="#lift"><b>03</b> Lift</a></li>
+            <li><a href="#reynolds"><b>04</b> Reynolds number</a></li>
+            <li><a href="#vorticity"><b>05</b> Vorticity</a></li>
+            <li><a href="#solver"><b>06</b> The solver</a></li>
+            <li><a href="#fuel"><b>07</b> Drag → fuel → CO₂</a></li>
+          </ol>
+        </section>
+
+        <section id="concepts" class="concepts">
+
+          <!-- 01 DRAG -->
+          <article class="concept" id="drag">
+            <header class="concept-head">
+              <span class="concept-index">01</span>
+              <div>
+                <span class="eyebrow">Forces</span>
+                <h2>Drag and the drag coefficient</h2>
+              </div>
+            </header>
+            <div class="concept-grid">
+              <div class="concept-text">
+                <div class="formula" aria-label="Drag force equals one half rho v squared C d A">
+                  <i>F</i><sub>D</sub> = ½ <i>ρ</i> <i>v</i><sup>2</sup> <i>C</i><sub>d</sub> <i>A</i>
+                </div>
+                <dl class="defs">
+                  <div><dt><i>ρ</i></dt><dd>air density, 1.2 kg/m³ at sea level</dd></div>
+                  <div><dt><i>v</i></dt><dd>speed of the air relative to the body</dd></div>
+                  <div><dt><i>A</i></dt><dd>frontal area the air has to get around</dd></div>
+                  <div><dt><i>C</i><sub>d</sub></dt><dd>the shape's number: how badly it disturbs the air</dd></div>
+                </dl>
+                <p>
+                  Drag is the force air pushes back with. Speed, size and density are not the
+                  shape's fault, so the coefficient divides them out. What remains is a pure
+                  measure of shape, and two objects with the same C<sub>d</sub> fly equally
+                  cleanly no matter how big they are.
+                </p>
+                <p class="in-app"><b>In AEROLAB</b> The large lime number is C<sub>d</sub>. The
+                  Drag force tile is this formula evaluated with the tunnel's speed and the
+                  body's height as the reference length. Mission 01 asks you to cut it by 35%.</p>
+                <blockquote class="say">
+                  “C<sub>d</sub> is the only number that is purely about the shape. That is why
+                  we rank designs by it, not by raw force.”
+                </blockquote>
+              </div>
+              <figure class="diagram">
+                <svg viewBox="0 0 320 200" role="img" aria-label="Reference drag coefficients: flat plate about 1.3 to 2, cylinder about 1.1, modern car about 0.3, streamlined body about 0.05">
+                  <g class="bar" transform="translate(24,28)">
+                    <rect x="0" y="0" width="236" height="14" />
+                    <text x="0" y="-6">Flat plate · C<tspan baseline-shift="sub" font-size="8">d</tspan> ≈ 1.3 – 2.0</text>
+                  </g>
+                  <g class="bar" transform="translate(24,72)">
+                    <rect x="0" y="0" width="144" height="14" />
+                    <text x="0" y="-6">Cylinder · ≈ 1.1</text>
+                  </g>
+                  <g class="bar" transform="translate(24,116)">
+                    <rect x="0" y="0" width="40" height="14" />
+                    <text x="0" y="-6">Modern car · ≈ 0.30</text>
+                  </g>
+                  <g class="bar accent" transform="translate(24,160)">
+                    <rect x="0" y="0" width="7" height="14" />
+                    <text x="0" y="-6">Streamlined body · ≈ 0.05</text>
+                  </g>
+                  <line class="axis" x1="24" y1="186" x2="296" y2="186" />
+                </svg>
+                <figcaption>Textbook ranges at road and flight speeds. The tunnel runs at low Reynolds number, so its values sit higher, but the order is the same.</figcaption>
+              </figure>
+            </div>
+          </article>
+
+          <!-- 02 WAKE -->
+          <article class="concept" id="wake">
+            <header class="concept-head">
+              <span class="concept-index">02</span>
+              <div>
+                <span class="eyebrow">Where drag comes from</span>
+                <h2>Pressure drag and the wake</h2>
+              </div>
+            </header>
+            <div class="concept-grid">
+              <div class="concept-text">
+                <div class="formula" aria-label="Force equals the closed integral of minus p n d s">
+                  <b class="op">F</b> = ∮ −<i>p</i> <b class="op">n</b> d<i>s</i>
+                </div>
+                <p>
+                  Air slams into the front of a body and piles up at high pressure. Behind a
+                  blunt body it cannot follow the sharp turn around the back edge, so the flow
+                  <em>separates</em> and leaves a churning low-pressure region: the wake. High
+                  pressure in front, low pressure behind, net force backward. For cars,
+                  cylinders and plates this pressure imbalance is most of the drag.
+                </p>
+                <p>
+                  A tapered tail changes the story. The air can stay attached longer, pressure
+                  climbs back up as the body narrows, and that recovered pressure pushes the
+                  body <em>forward</em>, cancelling some of the front load. That is why a
+                  teardrop has a tiny fraction of a cylinder's drag with the same frontal area.
+                </p>
+                <p class="in-app"><b>In AEROLAB</b> The dark, slow region behind a shape is the
+                  wake. The force readout literally integrates pressure around the body's
+                  outline every 50 ms, so when you draw a tail you watch the number drop.</p>
+                <blockquote class="say">
+                  “Cars have tails for pressure recovery. The wake behind a blunt body is a
+                  low-pressure hole that the body is dragging around.”
+                </blockquote>
+              </div>
+              <figure class="diagram">
+                <svg viewBox="0 0 320 200" role="img" aria-label="A blunt body with a wide turbulent wake compared with a teardrop body with a narrow wake">
+                  <g class="stream">
+                    <path d="M8 30 H70 C90 30 90 22 100 22 H140 C150 22 150 48 160 48 C190 48 220 32 312 36" />
+                    <path d="M8 50 H60 C72 50 78 44 86 44" />
+                    <path d="M8 70 H60 C72 70 78 76 86 76" />
+                    <path d="M8 90 H70 C90 90 90 98 100 98 H140 C150 98 150 72 160 72 C190 72 220 88 312 84" />
+                  </g>
+                  <rect class="body" x="86" y="40" width="48" height="40" rx="2" />
+                  <g class="wake">
+                    <path d="M138 50 c10 8 16 -4 26 4 c10 8 16 -6 26 2" />
+                    <path d="M138 70 c10 -8 16 4 26 -4 c10 -8 16 6 26 -2" />
+                  </g>
+                  <text class="label" x="150" y="118">wide wake · low pressure</text>
+
+                  <g class="stream" transform="translate(0,110)">
+                    <path d="M8 30 H70 C80 30 84 22 96 22 C120 22 150 32 200 40 C240 46 280 42 312 40" />
+                    <path d="M8 50 H60 C70 50 72 46 84 46" />
+                    <path d="M8 70 H60 C70 70 72 74 84 74" />
+                    <path d="M8 90 H70 C80 90 84 98 96 98 C120 98 150 88 200 80 C240 74 280 76 312 74" />
+                  </g>
+                  <path class="body" d="M84 160 C84 146 96 138 110 138 C150 138 200 154 230 160 C200 166 150 182 110 182 C96 182 84 174 84 160 Z" />
+                  <text class="label" x="312" y="198" text-anchor="end">pressure recovers along the tail</text>
+                </svg>
+                <figcaption>Same frontal height, very different wake. Mission 01 is this picture, drawn by hand.</figcaption>
+              </figure>
+            </div>
+          </article>
+
+          <!-- 03 LIFT -->
+          <article class="concept" id="lift">
+            <header class="concept-head">
+              <span class="concept-index">03</span>
+              <div>
+                <span class="eyebrow">Forces</span>
+                <h2>Lift, and how to explain it without the myth</h2>
+              </div>
+            </header>
+            <div class="concept-grid">
+              <div class="concept-text">
+                <div class="formula" aria-label="Lift force equals one half rho v squared C l A">
+                  <i>F</i><sub>L</sub> = ½ <i>ρ</i> <i>v</i><sup>2</sup> <i>C</i><sub>l</sub> <i>A</i>
+                </div>
+                <p>
+                  Lift is the part of the air's push that is <em>perpendicular</em> to the flow.
+                  A tilted or curved surface turns the oncoming air downward. By Newton's third
+                  law the air pushes the body upward. Equivalently, the turning shows up as lower
+                  pressure on top and higher pressure underneath, and integrating that pressure
+                  difference gives the same force. Both descriptions are the same physics.
+                </p>
+                <p>
+                  The ratio <i>L/D</i> is what designers chase: how much lift you get for each
+                  unit of drag. A good wing exceeds 15. A flat plate at a steep angle gets lift,
+                  but pays for it with a huge wake.
+                </p>
+                <p class="in-app"><b>In AEROLAB</b> C<sub>l</sub> is the second big number, and
+                  the Lift / drag tile is <i>L/D</i>. Mission 02 starts from a flat plate and
+                  asks for C<sub>l</sub> above 0.3. Tilting the plate shows the downward
+                  deflection in the tracers immediately.</p>
+                <blockquote class="say">
+                  “Lift is deflected air. The wing pushes air down, so the air pushes the wing
+                  up. The ‘longer path on top so air must go faster’ story is a known
+                  misconception, and our tracers show it is wrong.”
+                </blockquote>
+              </div>
+              <figure class="diagram">
+                <svg viewBox="0 0 320 200" role="img" aria-label="Streamlines deflected downward by a tilted plate, with an upward lift arrow and backward drag arrow">
+                  <g class="stream">
+                    <path d="M8 60 H100 C130 60 170 70 200 92 C230 112 270 128 312 134" />
+                    <path d="M8 85 H96 C128 85 160 96 192 116 C222 136 268 150 312 154" />
+                    <path d="M8 110 H92 C120 110 150 122 184 140 C214 156 266 168 312 172" />
+                    <path d="M8 135 H96 C150 135 190 146 312 182" opacity=".55" />
+                  </g>
+                  <path class="body" d="M98 72 L192 122 L186 132 L92 82 Z" />
+                  <g class="vector">
+                    <line x1="146" y1="96" x2="170" y2="50" />
+                    <path d="M170 50 l-8 4 M170 50 l-1 9" />
+                    <text x="176" y="50">lift</text>
+                  </g>
+                  <g class="vector drag">
+                    <line x1="146" y1="96" x2="190" y2="96" />
+                    <path d="M190 96 l-8 -4 M190 96 l-8 4" />
+                    <text x="196" y="99">drag</text>
+                  </g>
+                  <text class="label" x="30" y="30">air arrives level…</text>
+                  <text class="label" x="200" y="196">…and leaves angled down</text>
+                </svg>
+                <figcaption>The whole wake is bent downward. That bend is the lift.</figcaption>
+              </figure>
+            </div>
+          </article>
+
+          <!-- 04 REYNOLDS -->
+          <article class="concept" id="reynolds">
+            <header class="concept-head">
+              <span class="concept-index">04</span>
+              <div>
+                <span class="eyebrow">Regimes</span>
+                <h2>Reynolds number and the vortex street</h2>
+              </div>
+            </header>
+            <div class="concept-grid">
+              <div class="concept-text">
+                <div class="formula" aria-label="Reynolds number equals v L over nu">
+                  Re = <span class="frac"><span><i>v</i> <i>L</i></span><span><i>ν</i></span></span>
+                </div>
+                <dl class="defs">
+                  <div><dt><i>L</i></dt><dd>a size of the body, here its height</dd></div>
+                  <div><dt><i>ν</i></dt><dd>kinematic viscosity: air 1.5 × 10⁻⁵ m²/s, honey about 10⁻²</dd></div>
+                </dl>
+                <p>
+                  Re compares momentum, which wants to keep the flow going, with viscosity, which
+                  wants to smooth it out. Low Re is thick, orderly, laminar flow: honey around a
+                  spoon. High Re is thin, twitchy, turbulent flow: wind around a building. It is
+                  the single number that says whether two flows will look alike, which is why a
+                  small model in a tunnel can stand in for a full-size car.
+                </p>
+                <p>
+                  Behind a cylinder, somewhere above Re ≈ 50, the wake stops being symmetric and
+                  starts peeling off vortices alternately from each side: the Kármán vortex
+                  street. Each shed vortex tugs on the body, so drag and lift <em>oscillate</em>.
+                  The shedding frequency is set by the Strouhal number, <i>f</i> ≈ 0.2 <i>v</i>/<i>D</i>.
+                </p>
+                <p class="in-app"><b>In AEROLAB</b> The regime chip reads LAMINAR, TRANSITIONAL
+                  or TURBULENT from the tunnel's Re. Mission 04 raises viscosity until the street
+                  vanishes. The cylinder's C<sub>d</sub> wobbling between about 0.8 and 1.1 is
+                  shedding, which is why missions wait for a settled baseline before scoring.</p>
+                <blockquote class="say">
+                  “That wobble in the drag number isn't noise. It's vortex shedding, the same
+                  thing that makes power lines hum.”
+                </blockquote>
+              </div>
+              <figure class="diagram">
+                <svg viewBox="0 0 320 200" role="img" aria-label="A cylinder shedding alternating vortices downstream">
+                  <g class="stream">
+                    <path d="M8 60 H52 C64 60 70 52 80 52" />
+                    <path d="M8 100 H48" />
+                    <path d="M8 140 H52 C64 140 70 148 80 148" />
+                  </g>
+                  <circle class="body" cx="76" cy="100" r="26" />
+                  <g class="vortex pos">
+                    <circle cx="128" cy="78" r="13" />
+                    <circle cx="200" cy="76" r="15" />
+                    <circle cx="276" cy="74" r="17" />
+                  </g>
+                  <g class="vortex neg">
+                    <circle cx="164" cy="124" r="14" />
+                    <circle cx="238" cy="126" r="16" />
+                    <circle cx="312" cy="128" r="17" />
+                  </g>
+                  <text class="label" x="112" y="176">alternating sign · f ≈ 0.2 v / D</text>
+                  <text class="label" x="22" y="30">Re ≈ 100 – 1000</text>
+                </svg>
+                <figcaption>Lime vortices spin one way, mint the other. Toggle Vorticity in the app to see exactly this.</figcaption>
+              </figure>
+            </div>
+          </article>
+
+          <!-- 05 VORTICITY -->
+          <article class="concept" id="vorticity">
+            <header class="concept-head">
+              <span class="concept-index">05</span>
+              <div>
+                <span class="eyebrow">Fields</span>
+                <h2>Vorticity</h2>
+              </div>
+            </header>
+            <div class="concept-grid">
+              <div class="concept-text">
+                <div class="formula" aria-label="omega equals curl of u, in two dimensions d v d x minus d u d y">
+                  <i>ω</i> = ∇ × <b class="op">u</b> = <span class="frac"><span>∂<i>v</i></span><span>∂<i>x</i></span></span> − <span class="frac"><span>∂<i>u</i></span><span>∂<i>y</i></span></span>
+                </div>
+                <p>
+                  Vorticity is the local spin of the fluid: drop a tiny paddle wheel in and
+                  vorticity is how fast it turns. In two dimensions it is a single signed number
+                  per point. Vorticity is born in the thin boundary layer against a wall, where
+                  the no-slip condition forces velocity to zero, and it is carried downstream
+                  into the wake. Shed vortices alternate in sign because the top and bottom
+                  boundary layers spin opposite ways.
+                </p>
+                <p class="in-app"><b>In AEROLAB</b> The Vorticity toggle colours the field by
+                  sign. A smooth laminar wake shows two thin ribbons; a shedding wake shows a
+                  chain of alternating blobs. The 2D solver computes it from the velocity
+                  texture in one fragment shader pass.</p>
+                <blockquote class="say">
+                  “Vorticity view is the diagnostic. If the wake is two quiet ribbons, the body
+                  is clean. If it's a chain of blobs, it's shedding.”
+                </blockquote>
+              </div>
+              <figure class="diagram">
+                <svg viewBox="0 0 320 200" role="img" aria-label="Boundary layers on top and bottom of a body spin in opposite senses and feed the wake">
+                  <path class="body" d="M70 78 H170 a22 22 0 0 1 0 44 H70 a22 22 0 0 1 0 -44 Z" />
+                  <g class="vortex pos">
+                    <path d="M84 70 a7 7 0 1 1 10 2" />
+                    <path d="M118 70 a7 7 0 1 1 10 2" />
+                    <path d="M152 70 a7 7 0 1 1 10 2" />
+                  </g>
+                  <g class="vortex neg">
+                    <path d="M84 130 a7 7 0 1 0 10 -2" />
+                    <path d="M118 130 a7 7 0 1 0 10 -2" />
+                    <path d="M152 130 a7 7 0 1 0 10 -2" />
+                  </g>
+                  <g class="stream">
+                    <path d="M196 86 C230 84 250 70 300 72" />
+                    <path d="M196 114 C230 116 250 130 300 128" />
+                  </g>
+                  <text class="label" x="60" y="40">top boundary layer · ω &gt; 0</text>
+                  <text class="label" x="60" y="166">bottom boundary layer · ω &lt; 0</text>
+                </svg>
+                <figcaption>No-slip walls make vorticity. The wake is where the two layers meet.</figcaption>
+              </figure>
+            </div>
+          </article>
+
+          <!-- 06 SOLVER -->
+          <article class="concept" id="solver">
+            <header class="concept-head">
+              <span class="concept-index">06</span>
+              <div>
+                <span class="eyebrow">Numerics</span>
+                <h2>What the solver does every frame</h2>
+              </div>
+            </header>
+            <div class="concept-grid">
+              <div class="concept-text">
+                <div class="formula formula-stack" aria-label="Incompressible Navier–Stokes: momentum equation and divergence-free constraint">
+                  <div><span class="frac"><span>∂<b class="op">u</b></span><span>∂<i>t</i></span></span> + (<b class="op">u</b>·∇)<b class="op">u</b> = −<span class="frac"><span>∇<i>p</i></span><span><i>ρ</i></span></span> + <i>ν</i>∇²<b class="op">u</b></div>
+                  <div>∇·<b class="op">u</b> = 0</div>
+                </div>
+                <p>
+                  These are the incompressible Navier–Stokes equations: momentum is carried
+                  along by the flow, pushed by pressure gradients and smeared by viscosity, and
+                  the fluid never compresses. There is no general closed-form solution, so the
+                  tunnel marches them forward in small time steps using a
+                  <em>fractional-step</em> (projection) method on the GPU:
+                </p>
+                <ol class="steps">
+                  <li><b>Advect.</b> For each cell, trace backwards along the velocity and pull the value from there (semi-Lagrangian). Stable at any speed.</li>
+                  <li><b>Diffuse.</b> Apply viscosity, the ν∇²u term. Higher ν, calmer flow.</li>
+                  <li><b>Pressure.</b> The result is not divergence-free yet. Solve the Poisson equation ∇²p = ∇·u* with Jacobi iterations in ping-pong framebuffers.</li>
+                  <li><b>Project.</b> Subtract ∇p. Now ∇·u = 0 and the field is physical again.</li>
+                </ol>
+                <p>
+                  Solid cells get a no-slip wall. Pressure is read back asynchronously and
+                  integrated around the body outline to give force, then C<sub>d</sub> and
+                  C<sub>l</sub>. The 3D mode swaps in a lattice-Boltzmann method (D3Q19): instead
+                  of solving the equations directly it streams particle populations along 19
+                  directions and relaxes them toward equilibrium, with bounce-back at walls.
+                  Forces come from the momentum the walls exchange with those populations.
+                </p>
+                <p class="in-app"><b>In AEROLAB</b> The Numerics panel lists each pass, the grid
+                  size and the iteration count. The tracers ride the projected velocity, so what
+                  you see is the same field the force integral feels.</p>
+                <blockquote class="say">
+                  “It's a real Navier–Stokes solver, not an animation. Advect, pressure solve,
+                  project, every frame, on the GPU. The tracers and the force come from the same
+                  field.”
+                </blockquote>
+              </div>
+              <figure class="diagram">
+                <svg viewBox="0 0 320 200" role="img" aria-label="Four solver passes in a loop: advect, diffuse, pressure, project, with readback to the force integral">
+                  <g class="box"><rect x="24" y="22" width="118" height="40" rx="3" /><text x="83" y="47">1 · advect</text></g>
+                  <g class="box"><rect x="178" y="22" width="118" height="40" rx="3" /><text x="237" y="47">2 · diffuse</text></g>
+                  <g class="box"><rect x="178" y="96" width="118" height="40" rx="3" /><text x="237" y="121">3 · pressure</text></g>
+                  <g class="box"><rect x="24" y="96" width="118" height="40" rx="3" /><text x="83" y="121">4 · project</text></g>
+                  <g class="arrow">
+                    <path d="M142 42 H176" /><path d="M176 42 l-6 -4 M176 42 l-6 4" />
+                    <path d="M237 62 V94" /><path d="M237 94 l-4 -6 M237 94 l4 -6" />
+                    <path d="M178 116 H144" /><path d="M144 116 l6 -4 M144 116 l6 4" />
+                    <path d="M83 96 V64" /><path d="M83 64 l-4 6 M83 64 l4 6" />
+                  </g>
+                  <g class="arrow accent">
+                    <path d="M237 136 V166 H160" />
+                    <path d="M160 166 l6 -4 M160 166 l6 4" />
+                  </g>
+                  <text class="label" x="24" y="170">∮ −p n ds → C<tspan baseline-shift="sub" font-size="8">d</tspan>, C<tspan baseline-shift="sub" font-size="8">l</tspan></text>
+                  <text class="label" x="24" y="190">60 FPS solve · 20 Hz force readback</text>
+                </svg>
+                <figcaption>One frame of the 2D solver. Ping-pong float framebuffers hold u and p.</figcaption>
+              </figure>
+            </div>
+          </article>
+
+          <!-- 07 FUEL -->
+          <article class="concept" id="fuel">
+            <header class="concept-head">
+              <span class="concept-index">07</span>
+              <div>
+                <span class="eyebrow">Sustainability</span>
+                <h2>Why drag costs fuel, and why speed costs more</h2>
+              </div>
+            </header>
+            <div class="concept-grid">
+              <div class="concept-text">
+                <div class="formula" aria-label="Drag power equals one half rho v cubed C d A">
+                  <i>P</i> = <i>F</i><sub>D</sub> <i>v</i> = ½ <i>ρ</i> <i>v</i><sup>3</sup> <i>C</i><sub>d</sub> <i>A</i>
+                </div>
+                <p>
+                  Power is force times speed, and drag force already grows with <i>v</i>², so
+                  the power spent pushing air grows with <i>v</i>³. Drive 10% faster and you burn
+                  about 33% more energy on drag. At highway speed roughly half of a car's engine
+                  output goes into the air. That is why aerodynamics is a climate lever and not
+                  just a racing one.
+                </p>
+                <p>
+                  Energy over a trip is power times time. Petrol holds about 34.2 MJ per litre,
+                  and an engine turns roughly a quarter of it into motion, so every litre buys
+                  about 8.5 MJ at the wheels and releases 2.31 kg of CO₂.
+                </p>
+                <div class="worked">
+                  <span class="eyebrow">Worked example · 100 km at 100 km/h</span>
+                  <table>
+                    <tr><td>C<sub>d</sub> 0.30, A 2.2 m², v 27.8 m/s</td><td><i>P</i> ≈ 8.5 kW</td></tr>
+                    <tr><td>One hour of that</td><td>≈ 30.6 MJ</td></tr>
+                    <tr><td>÷ 8.5 MJ useful per litre</td><td>≈ 3.6 L on drag alone</td></tr>
+                    <tr><td>× 2.31 kg CO₂ per litre</td><td>≈ 8.3 kg CO₂</td></tr>
+                  </table>
+                </div>
+                <p class="in-app"><b>In AEROLAB</b> The road panel runs exactly this chain for
+                  the shape on screen, using its C<sub>d</sub> relative to the saved baseline.
+                  Mission 03 turns a 20% drag cut on the car into litres and kilograms.</p>
+                <blockquote class="say">
+                  “Drag power goes as speed cubed. Our road panel is drag share only, for
+                  comparing shapes, with every assumption listed in the Numerics panel.”
+                </blockquote>
+              </div>
+              <figure class="diagram">
+                <svg viewBox="0 0 320 200" role="img" aria-label="Drag power rising as the cube of speed, with points at 50, 80, 100 and 130 kilometres per hour">
+                  <line class="axis" x1="40" y1="170" x2="300" y2="170" />
+                  <line class="axis" x1="40" y1="170" x2="40" y2="20" />
+                  <path class="curve" d="M40 170 C100 169 160 158 200 128 C230 106 262 66 290 26" />
+                  <g class="dot"><circle cx="118" cy="166" r="3" /><text x="118" y="156">50</text></g>
+                  <g class="dot"><circle cx="178" cy="148" r="3" /><text x="178" y="138">80</text></g>
+                  <g class="dot accent"><circle cx="212" cy="118" r="3.5" /><text x="212" y="108">100</text></g>
+                  <g class="dot"><circle cx="268" cy="56" r="3" /><text x="268" y="46">130</text></g>
+                  <text class="label" x="44" y="190">km/h →</text>
+                  <text class="label" x="48" y="30">drag power ∝ v³</text>
+                </svg>
+                <figcaption>From 100 to 130 km/h the drag power more than doubles.</figcaption>
+              </figure>
+            </div>
+          </article>
+        </section>
+
+        <section id="numbers" class="panel">
+          <div class="panel-head">
+            <span class="eyebrow">Memorise these</span>
+            <h2>Numbers worth having <em>in your head.</em></h2>
+          </div>
+          <div class="num-grid">
+            <div class="num"><b>1.2 kg/m³</b><span>density of air at sea level</span></div>
+            <div class="num"><b>1.5 × 10⁻⁵ m²/s</b><span>kinematic viscosity of air</span></div>
+            <div class="num"><b>≈ 1.1</b><span>C<sub>d</sub> of a cylinder</span></div>
+            <div class="num"><b>0.25 – 0.30</b><span>C<sub>d</sub> of a modern car</span></div>
+            <div class="num"><b>≈ 0.05</b><span>C<sub>d</sub> of a streamlined body</span></div>
+            <div class="num"><b>≈ 0.2</b><span>Strouhal number for a cylinder</span></div>
+            <div class="num"><b>v³</b><span>how drag power scales with speed</span></div>
+            <div class="num"><b>~50 %</b><span>engine power spent on drag at highway speed</span></div>
+            <div class="num"><b>34.2 MJ/L</b><span>energy in petrol · ~25 % reaches the wheels</span></div>
+            <div class="num"><b>2.31 kg</b><span>CO₂ per litre of petrol burned</span></div>
+            <div class="num"><b>&gt; 15</b><span>lift-to-drag of a decent wing</span></div>
+            <div class="num"><b>180 / 1200</b><span>the tunnel's laminar and turbulent Re thresholds</span></div>
+          </div>
+        </section>
+
+        <section id="questions" class="panel">
+          <div class="panel-head">
+            <span class="eyebrow">Be ready</span>
+            <h2>Questions a judge <em>will</em> ask.</h2>
+          </div>
+          <div class="qa">
+            <details open>
+              <summary>Is this a real simulation or an animation?</summary>
+              <p>A real one. It integrates the incompressible Navier–Stokes equations with a fractional-step method on the GPU every frame, and the force is the pressure integral around the body. The tracers ride the same velocity field the force is measured from. The Numerics panel lists every pass.</p>
+            </details>
+            <details>
+              <summary>How accurate are the drag numbers?</summary>
+              <p>Good enough to rank shapes, not to certify them. It is 2D, at a lower Reynolds number than a real car, on a grid coarse enough to run at 60 FPS. The ordering and the relative changes match textbooks: a tail cuts drag, a tilted plate makes lift, viscosity kills the vortex street. That is why missions use relative targets.</p>
+            </details>
+            <details>
+              <summary>Why does the number keep moving on the cylinder?</summary>
+              <p>Vortex shedding. Above a modest Reynolds number the wake sheds alternating vortices, and each one tugs on the body. Real cylinders do this too. The missions wait until the last dozen readings agree within 8% before they score a run.</p>
+            </details>
+            <details>
+              <summary>Why 2D? Isn't air 3D?</summary>
+              <p>2D keeps the solve under 16 ms on a Chromebook, which is what makes it usable in a classroom. For long bodies, like a wing section or a car silhouette, 2D captures the mechanism students need to see. The 3D lattice-Boltzmann mode is there for when the shape genuinely needs it, at a lower resolution.</p>
+            </details>
+            <details>
+              <summary>Where do the fuel and CO₂ numbers come from?</summary>
+              <p>Drag power is ½ρv³C<sub>d</sub>A. We assume 100 km/h, a 2.2 m² frontal area, 34.2 MJ per litre of petrol, 25% engine efficiency and 2.31 kg CO₂ per litre. It is the drag share only, meant for comparing two shapes, and every constant is shown in the app.</p>
+            </details>
+            <details>
+              <summary>How is lift explained to students?</summary>
+              <p>As deflected air. The body turns the flow downward and the air pushes back upward. We deliberately avoid the “equal transit time” story because it is wrong, and the tracers make that visible: air over the top does not meet up with air underneath.</p>
+            </details>
+            <details>
+              <summary>What does the camera actually do?</summary>
+              <p>Colour-keys or hand-detects the object, rasterises its silhouette into the solver mask, and tests it like any drawn shape. Frames stay on the device. Nothing is uploaded.</p>
+            </details>
+            <details>
+              <summary>Why does this matter beyond a classroom?</summary>
+              <p>Half the energy a car spends at highway speed goes into air. Letting a fourteen-year-old feel that in litres, on a device the school already owns, is how you get people who think about efficiency before they think about horsepower.</p>
+            </details>
+          </div>
+        </section>
+
+        <section id="limits" class="panel split">
+          <div>
+            <div class="panel-head">
+              <span class="eyebrow">Say this, not that</span>
+              <h2>Three phrasings <em>to get right.</em></h2>
+            </div>
+            <ul class="swap">
+              <li><s>Air travels farther over the top so it speeds up and lifts the wing.</s><b>The wing deflects air downward, so the air pushes the wing up.</b></li>
+              <li><s>Drag is the air's friction.</s><b>For blunt shapes drag is mostly pressure: high in front, low in the wake. Skin friction is the small part.</b></li>
+              <li><s>The simulation shows exactly what a car would do.</s><b>The simulation shows the mechanism and ranks shapes. It is 2D at low Reynolds number, and we say so.</b></li>
+            </ul>
+          </div>
+          <div>
+            <div class="panel-head">
+              <span class="eyebrow">Own the limits</span>
+              <h2>Name them before <em>they do.</em></h2>
+            </div>
+            <ul class="limits">
+              <li><b>Two-dimensional.</b> Infinite-span bodies; no tip vortices, no 3D relief.</li>
+              <li><b>Low Reynolds number.</b> Hundreds to low thousands, versus millions for a real car. Coefficients sit higher than road values.</li>
+              <li><b>Coarse grid.</b> Chosen so a Chromebook holds 60 FPS. Thin boundary layers are under-resolved.</li>
+              <li><b>Estimates, clearly labelled.</b> Fuel and CO₂ are the drag share under stated assumptions, meant for comparison.</li>
+            </ul>
+          </div>
+        </section>
+
+        <section id="pitch" class="panel pitch">
+          <div class="panel-head">
+            <span class="eyebrow">Sixty seconds</span>
+            <h2>The pitch, <em>physics first.</em></h2>
+          </div>
+          <ol class="script">
+            <li><span>0:00</span>“A real wind tunnel costs more than a classroom. This one runs in a browser tab on the Chromebooks a school already has.”</li>
+            <li><span>0:10</span>Draw a cylinder. “That number is the drag coefficient. It's wobbling because the wake is shedding vortices, the same physics that makes power lines hum.”</li>
+            <li><span>0:25</span>Draw a tail. “Watch it drop. The air stays attached and pressure recovers along the tail. That is why cars have tails.”</li>
+            <li><span>0:35</span>Open the road panel. “Drag power scales with speed cubed. This shape just saved 3 litres per 100 km and 8 kilograms of CO₂, in drag alone.”</li>
+            <li><span>0:45</span>Hold a hand up to the camera. “Anything you can hold up, you can test.”</li>
+            <li><span>0:52</span>“It's a real Navier–Stokes solver on the GPU, every assumption is on screen, and a class can race designs on a shared board. That's AEROLAB.”</li>
+          </ol>
+        </section>
+      </main>
+
+      <footer class="site-footer">
+        <span>AEROLAB / PHYSICS PRIMER</span>
+        <a href="/">← Back to the wind tunnel</a>
+        <span>½ ρ v² C<sub>d</sub> A · Re = vL/ν · ∇·u = 0</span>
+      </footer>
+    </div>
+  </body>
+</html>
