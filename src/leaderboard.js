@@ -103,7 +103,7 @@ export function createLeaderboard() {
     }
     const list = rows();
     if (!list.length) {
-      board.innerHTML = `<div class="empty-board"><span>NO ${ui.dim} RUNS YET</span><h3>Your workshop is waiting.</h3><p>Shape something, let the flow settle, and run a five-second test.</p></div>`;
+      board.innerHTML = `<div class="empty-board"><span>NO ${ui.dim} RUNS YET</span><h3>Nothing on the board yet.</h3><p>Run a five-second test to post the first score.</p></div>`;
       return;
     }
     const last = ui.sort === 'ld' ? 'L/D' : 'SCORE';
@@ -152,7 +152,7 @@ export function createLeaderboard() {
       : `<form class="name-form" id="name-form"><input id="name-input" maxlength="24" autocomplete="off" placeholder="${escapeHtml(p.fallback)}" aria-label="Design name" /><button type="submit" class="shape-chip is-active">Save to board</button></form>`;
     const prevAi = coach.querySelector('#coach-ai');
     const keep = prevAi && !prevAi.hidden ? { html: prevAi.innerHTML, state: prevAi.dataset.state } : null;
-    coach.innerHTML = `<span class="coach-icon">✦</span><p class="eyebrow">Flow coach · ${p.dim} run</p><div class="score-badge">${p.score.toFixed(0)}<small>/100</small></div><h3>${escapeHtml(p.name || 'Name your design')}</h3><p>${p.insight}</p><p class="coach-ai" id="coach-ai" hidden></p><p class="coach-ld">L/D ${p.ld.toFixed(2)} · Cd ${p.cd.toFixed(3)} · Cl ${p.cl.toFixed(3)}</p>${form}`;
+    coach.innerHTML = `<p class="eyebrow">Your last run · ${p.dim}</p><div class="score-badge">${p.score.toFixed(0)}<small>/100</small></div><h3>${escapeHtml(p.name || 'Name your design')}</h3><p>${p.insight}</p><p class="coach-ai" id="coach-ai" hidden></p><p class="coach-ld">L/D ${p.ld.toFixed(2)} · Cd ${p.cd.toFixed(3)} · Cl ${p.cl.toFixed(3)}</p>${form}`;
     if (keep) {
       const ai = coach.querySelector('#coach-ai');
       ai.hidden = false;

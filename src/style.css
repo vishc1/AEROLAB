@@ -2586,3 +2586,9 @@ body:not(.build-sketch) #plan-pane { display: none; }
 /* inline links in prose */
 .inline-link { color: var(--mint); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(114, 236, 196, 0.4); }
 .inline-link:hover { color: var(--lime); text-decoration-color: currentColor; }
+
+/* quieter section heads */
+.workshop-head h2, .notes-head h2, .classroom .workshop-head h2 { font-style: normal; }
+.footer-link { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--line); }
+.footer-link:hover { color: var(--lime); border-color: currentColor; }
+.workshop-head h2, .notes h2, .notes-head h2 { margin: 6px 0 0; font: 400 clamp(28px, 3vw, 40px)/1.08 var(--serif); letter-spacing: 0; color: var(--cream); }
