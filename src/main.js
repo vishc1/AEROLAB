@@ -72,8 +72,19 @@ function showError(title, error) {
   console.error(error);
   errorOverlay.hidden = false;
   errorTitle.textContent = title;
-  errorText.textContent = error?.message || String(error);
+  const message = error?.message || String(error);
+  errorText.textContent = message;
+  const help = document.getElementById('error-help');
+  if (help) {
+    if (/webgl2 is not available|EXT_color_buffer_float|context lost|float render/i.test(message + title)) {
+      help.textContent =
+        'AEROLAB runs the fluid solver on your GPU. Try Chrome, Edge or Firefox, make sure hardware acceleration is on in the browser settings, then reload. The 3D mode and drawing tools need WebGL2.';
+    } else {
+      help.textContent = 'Something went wrong starting the solver. Reloading usually fixes it.';
+    }
+  }
 }
+document.getElementById('error-reload')?.addEventListener('click', () => location.reload());
 
 function resetMetrics() {
   const s = store.state;

@@ -2583,6 +2583,10 @@ body:not(.build-sketch) #plan-pane { display: none; }
 .explain-card { border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 10px; padding: 10px 12px; margin-top: 10px; font-size: 12px; line-height: 1.5; color: #cfd8cf; }
 .explain-card p { margin: 6px 0 0; }
 
+.error-help { color: var(--text, #e8eef2); }
+.error-detail { font-family: var(--mono); opacity: 0.7; }
+.error-actions { margin-top: 12px; }
+
 /* inline links in prose */
 .inline-link { color: var(--mint); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(114, 236, 196, 0.4); }
 .inline-link:hover { color: var(--lime); text-decoration-color: currentColor; }
