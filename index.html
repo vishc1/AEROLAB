@@ -6,7 +6,7 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta
       name="description"
-      content="AEROLAB — a real-time WebGL2 wind tunnel. Draw a shape, watch the air answer."
+      content="A wind tunnel in a browser tab. Draw a shape or hold one up to the camera, and a GPU fluid solver reports drag, lift and fuel cost."
     />
     <meta name="theme-color" content="#07100f" />
     <meta property="og:type" content="website" />
@@ -24,12 +24,10 @@
       href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@300;400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap"
       rel="stylesheet"
     />
-    <title>AEROLAB — let the air answer</title>
+    <title>AEROLAB — a wind tunnel in a browser tab</title>
   </head>
   <body>
     <div class="app-shell">
-      <div class="ambient ambient-a"></div>
-      <div class="ambient ambient-b"></div>
 
       <div class="page">
         <header class="site-header">
@@ -56,6 +54,7 @@
 
           <div class="header-right">
             <span class="header-note">WEBGL2 · GPU</span>
+            <a class="text-button" href="/physics.html">Physics</a>
             <button id="open-docs" class="text-button" type="button">
               Numerics
               <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
@@ -68,25 +67,18 @@
         <main class="main">
           <section class="hero">
             <div class="hero-copy">
-              <span class="eyebrow">A real-time wind tunnel for things you make</span>
               <h1>
-                Build something.<br />
-                <em>Let the air answer.</em>
+                A wind tunnel<br />
+                in a browser tab.
               </h1>
             </div>
             <div class="hero-side">
               <p>
-                A real wind tunnel costs more than a classroom. This one runs in a
-                browser tab: test a hand, a paper prototype, or a Blender design,
-                learn why the air behaves that way, and see what the drag would cost
-                on the road.
+                Draw a shape, hold something up to the camera, or drop in a Blender
+                file. A fluid solver on your GPU pushes air around it and reports the
+                drag, the lift, and what that drag would cost in fuel on the road.
+                Most schools can't afford the real thing. This one runs on a Chromebook.
               </p>
-              <div class="hero-meta">
-                <span>2D GPU · 3D LATTICE-BOLTZMANN</span>
-                <span>MEDIAPIPE HAND TRACKING</span>
-                <span>BLENDER → AR</span>
-                <span>5 GUIDED MISSIONS</span>
-              </div>
               <button id="quick-upload" class="hero-upload" type="button">
                 <span>Upload an object or image</span><b>.GLB / PNG / JPG ↗</b>
               </button>
@@ -476,7 +468,7 @@
                 </div>
 
                 <div class="explain-card" id="explain-card">
-                  <span class="eyebrow">In plain language</span>
+                  <span class="eyebrow">What this means</span>
                   <p id="explain-text">Waiting for the flow to settle…</p>
                 </div>
 
@@ -587,7 +579,7 @@
 
             <div class="mission-dock" aria-label="Missions">
               <div class="mission-dock-head">
-                <span class="eyebrow">Learn by doing</span>
+                <span class="eyebrow">Missions</span>
                 <b id="mission-count">0 / 5</b>
               </div>
               <div id="mission-chips" class="mission-chips" role="group" aria-label="Missions"></div>
@@ -595,28 +587,16 @@
             </div>
           </section>
 
-          <section class="experience-strip" aria-label="From prototype to proof">
-            <div class="experience-intro">
-              <span class="eyebrow">One continuous design loop</span>
-              <h2>From your hands<br /><em>to hard evidence.</em></h2>
-            </div>
-            <div class="experience-steps">
-              <article><b>01</b><span>CAPTURE</span><p>Pick a real object color or let MediaPipe track your hand.</p></article>
-              <article><b>02</b><span>SIMULATE</span><p>Watch the GPU resolve pressure, wake and signed vortices live.</p></article>
-              <article><b>03</b><span>COMPARE</span><p>Pin a baseline, cut its drag, and read the saving in litres and CO₂.</p></article>
-              <article><b>04</b><span>MAKE IT REAL</span><p>Import a Blender model, test three projections, then launch AR.</p></article>
-            </div>
-          </section>
 
           <section class="workshop" aria-label="Workshop leaderboard">
             <div class="workshop-head">
               <div>
-                <span class="eyebrow">Workshop</span>
-                <h2>Run the test. <em>Climb the board.</em></h2>
+                <h2>Leaderboard</h2>
               </div>
               <p class="notes-intro" id="workshop-note">
-                Five seconds of averaged drag and lift becomes a score. 2D and 3D are ranked
-                separately. Join a class room to climb a private board, or use the shared one.
+                Run a five-second test and the averaged drag and lift become a score.
+                2D and 3D are ranked separately. Create a room if one class wants a
+                board of its own.
               </p>
             </div>
             <div class="board-controls">
@@ -656,10 +636,9 @@
                 <div id="leaderboard" class="leaderboard"></div>
               </div>
               <div id="coach-card" class="coach-card">
-                <span class="coach-icon">✦</span>
-                <p class="eyebrow">Flow coach</p>
-                <h3>Waiting for a run</h3>
-                <p>Run a five-second test and the coach explains what your shape did to the air.</p>
+                <p class="eyebrow">Your last run</p>
+                <h3>Nothing to explain yet</h3>
+                <p>After a five-second test this space says what your shape did to the air and suggests one change to try.</p>
               </div>
             </div>
           </section>
@@ -667,12 +646,13 @@
           <section class="classroom" aria-label="In the classroom">
             <div class="workshop-head">
               <div>
-                <span class="eyebrow">In the classroom</span>
-                <h2>Three lessons, <em>zero hardware.</em></h2>
+                <h2>For teachers</h2>
               </div>
               <p class="notes-intro">
-                Runs on a Chromebook, needs no account or install, and camera frames never
-                leave the device. Each lesson is a 45-minute block built on the missions.
+                No accounts, no install, and camera frames never leave the device. Each
+                lesson below fits a 45-minute block and is built on the missions. The
+                <a class="inline-link" href="/physics.html">physics primer</a> covers every
+                idea they rest on, with the equations and the honest limits.
               </p>
             </div>
             <div class="lesson-grid">
@@ -709,13 +689,13 @@
           <section class="notes">
             <div class="notes-head">
               <div>
-                <span class="eyebrow">Under the hood</span>
-                <h2>Real fluid physics,<br /><em>running in your browser.</em></h2>
+                <h2>How it works</h2>
               </div>
               <p class="notes-intro">
-                Four ping-pong GPU passes per frame. The tracers ride the same
-                velocity field the pressure solve projects — so what you see is what
-                the force integral feels.
+                Four GPU passes per frame, no approximated animation. The tracers ride
+                the same velocity field the pressure solve projects, so what you see is
+                what the force integral feels. The Numerics button at the top has the
+                full breakdown.
               </p>
             </div>
             <div class="note-grid">
@@ -751,8 +731,8 @@
         </main>
 
         <footer class="site-footer">
-          <span>AEROLAB / EXPERIMENT 01</span>
-          <span class="footer-center">64-bit float pressure · 16-bit float velocity · 65,536 GPU tracers</span>
+          <span>Built by Vishwesh · <a class="footer-link" href="https://github.com/vishc1/TinkerIt">Source on GitHub</a></span>
+          <span class="footer-center">32-bit float pressure · 16-bit float velocity · 65,536 GPU tracers</span>
           <span class="footer-perf"><b id="footer-fps">60 FPS</b> · <span id="footer-perf">16.7 MS</span></span>
         </footer>
       </div>
