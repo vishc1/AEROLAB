@@ -272,8 +272,15 @@ export class CameraTracker {
       if (request !== this.cameraRequest) return;
       this.stream = null;
       btn.textContent = 'Camera blocked — try again';
-      this.setPrompt('Allow camera access, then try again');
-      this.setStatus('bad', error?.name === 'NotAllowedError' ? 'Camera permission denied' : 'Camera unavailable');
+      const reasons = {
+        NotAllowedError: ['Camera permission denied · allow it in the address bar', 'Camera access was blocked. Click the camera icon in the address bar, allow access, then try again'],
+        NotFoundError: ['No camera found · plug one in', 'No camera was detected. Connect one, or use Draw or Model mode instead'],
+        NotReadableError: ['Camera busy · close other apps using it', 'Another app is using the camera. Close it and try again'],
+        OverconstrainedError: ['Camera does not support this resolution', 'This camera could not match the requested settings. Try again or use another camera'],
+      };
+      const [status, prompt] = reasons[error?.name] || [navigator.mediaDevices ? 'Camera unavailable' : 'Camera needs https or localhost', 'Camera could not start. Try again, or use Draw or Model mode'];
+      this.setPrompt(prompt);
+      this.setStatus('bad', status);
     } finally {
       if (request === this.cameraRequest) this.starting = false;
     }

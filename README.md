@@ -55,6 +55,7 @@ npm run preview
 - Export a PNG report card with the live tunnel frame, coefficients, road numbers and mission progress
 - AI flow coach: after each five-second test a serverless function asks Claude to explain what the air did to this shape and suggest one change; the rule-based coach stays as the fallback
 - First-visit tour and a classroom section with three lessons mapped to NGSS standards
+- Physics primer at `/physics.html`: seven concepts with equations, diagrams, where each shows up in the app, judge Q&A, numbers to memorise and a 60-second pitch
 - Class rooms: a four-letter code puts a whole class on one live leaderboard (Vercel Blob with ETag-conditional writes); invite links join on open
 - Link previews (Open Graph and Twitter cards) and a submission write-up in `SUBMISSION.md`
 - WebGL2 fractional-step fluid solver with 65,536 live GPU tracers
