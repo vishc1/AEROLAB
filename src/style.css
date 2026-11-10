@@ -2602,3 +2602,22 @@ body:not(.build-sketch) #plan-pane { display: none; }
 .footer-link { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--line); }
 .footer-link:hover { color: var(--lime); border-color: currentColor; }
 .workshop-head h2, .notes h2, .notes-head h2 { margin: 6px 0 0; font: 400 clamp(28px, 3vw, 40px)/1.08 var(--serif); letter-spacing: 0; color: var(--cream); }
+
+/* phone toolbar: one group per row, no stretched tool tabs */
+@media (max-width: 960px) {
+  .lab-bar { align-items: flex-start; }
+  .lab-tabs, #tool-tabs { min-height: 44px; }
+  .lab-tab { padding: 0 14px; min-height: 44px; }
+  #tool-tabs { order: 2; flex: 1 1 auto; }
+  .lab-status { order: 3; margin-left: auto; min-height: 44px; }
+  .shape-bar { order: 4; flex: 1 1 100%; width: 100%; padding: 8px 10px; row-gap: 6px; column-gap: 6px; }
+  .shape-bar .shape-label { width: 100%; }
+}
+@media (max-width: 520px) {
+  .lab-tabs:not(#tool-tabs) { flex: 1 1 auto; }
+  .lab-tabs:not(#tool-tabs) .lab-tab { flex: 1 1 auto; justify-content: center; padding: 0 10px; }
+  #tool-tabs { flex: 1 1 100%; border-top: 1px solid var(--line); }
+  #tool-tabs .lab-tab { flex: 1 1 0; justify-content: center; }
+  .lab-status { flex: 1 1 100%; margin-left: 0; border-top: 1px solid var(--line); justify-content: space-between; }
+}
+.coach-card .eyebrow { font-size: 9.5px; letter-spacing: 0.18em; line-height: 1.4; margin: 0 0 6px; }
