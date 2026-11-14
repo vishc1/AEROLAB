@@ -2750,3 +2750,6 @@ body[data-view="large"] .benchmark { margin-top: 0; }
 .stage-caption .caption-data { order: 3; }
 .control-head { justify-content: flex-start; }
 .control-head output { margin-left: auto; }
+.cam-pick-label { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); z-index: 3; padding: 6px 10px; border: 1px solid var(--lime); background: rgba(5, 14, 12, 0.85); color: var(--lime); font: 600 9.5px var(--mono); letter-spacing: 0.14em; text-transform: uppercase; white-space: nowrap; pointer-events: none; display: none; animation: pick-pulse 1.2s ease-in-out infinite; }
+.cam-view:has(canvas.is-picking) .cam-pick-label { display: block; }
+@keyframes pick-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
