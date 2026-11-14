@@ -1,6 +1,7 @@
 import '@google/model-viewer';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { GRID } from './sim3d.js';
 
 const PREVIEW_SIZE = 512;
 const MAX_FILE_BYTES = 75 * 1024 * 1024;
@@ -196,6 +197,7 @@ export class ModelImporter {
         const gltf = await this.loader.loadAsync(this.url);
         stats = this.measure(gltf.scene);
         this.modelScene = this.normaliseScene(gltf.scene);
+        this.voxelCache = null;
       }
       this.createHandArScene();
       this.$('model-tris').textContent = stats.triangles.toLocaleString('en-US');
@@ -249,6 +251,90 @@ export class ModelImporter {
     const drawHeight = height * scale;
     context.drawImage(image, (PREVIEW_SIZE - drawWidth) / 2, (PREVIEW_SIZE - drawHeight) / 2, drawWidth, drawHeight);
     return context.getImageData(0, 0, PREVIEW_SIZE, PREVIEW_SIZE).data;
+  }
+
+  /**
+   * Voxelise the imported mesh into the 3D lattice so the tunnel tests the
+   * whole model rather than an extruded silhouette. Rays are cast through
+   * every lattice column inside the model's footprint and cells between
+   * entry/exit hits are filled. Cheap: a few hundred rays per rebuild.
+   */
+  voxelize(axis = this.axis) {
+    if (!this.modelScene || this.isImage) return null;
+    const key = `${axis}:${this.url}`;
+    if (this.voxelCache?.key === key) return this.voxelCache.solid;
+    const { NX, NY, NZ } = GRID;
+    const scene = this.modelScene;
+    scene.updateMatrixWorld(true);
+    scene.traverse((node) => {
+      if (node.isMesh && node.material) {
+        for (const m of Array.isArray(node.material) ? node.material : [node.material]) m.side = THREE.DoubleSide;
+      }
+    });
+    // tunnel axes (x: wind, y: up, z: span) expressed in model space
+    const basis = {
+      front: { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] },
+      side: { x: [0, 0, -1], y: [0, 1, 0], z: [1, 0, 0] },
+      top: { x: [1, 0, 0], y: [0, 0, -1], z: [0, 1, 0] },
+    }[axis] || { x: [1, 0, 0], y: [0, 1, 0], z: [0, 0, 1] };
+    const toModel = (tx, ty, tz) => new THREE.Vector3(
+      tx * basis.x[0] + ty * basis.y[0] + tz * basis.z[0],
+      tx * basis.x[1] + ty * basis.y[1] + tz * basis.z[1],
+      tx * basis.x[2] + ty * basis.y[2] + tz * basis.z[2],
+    );
+    const toTunnel = (p) => ({
+      x: p.x * basis.x[0] + p.y * basis.x[1] + p.z * basis.x[2],
+      y: p.x * basis.y[0] + p.y * basis.y[1] + p.z * basis.y[2],
+      z: p.x * basis.z[0] + p.y * basis.z[1] + p.z * basis.z[2],
+    });
+    // bounding box in tunnel orientation
+    const box = new THREE.Box3().setFromObject(scene);
+    const corners = [];
+    for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) for (const z of [box.min.z, box.max.z]) corners.push(toTunnel(new THREE.Vector3(x, y, z)));
+    const lo = { x: Math.min(...corners.map((c) => c.x)), y: Math.min(...corners.map((c) => c.y)), z: Math.min(...corners.map((c) => c.z)) };
+    const hi = { x: Math.max(...corners.map((c) => c.x)), y: Math.max(...corners.map((c) => c.y)), z: Math.max(...corners.map((c) => c.z)) };
+    const len = Math.max(1e-6, hi.x - lo.x);
+    const height = Math.max(1e-6, hi.y - lo.y);
+    const span = Math.max(1e-6, hi.z - lo.z);
+    // same envelope the 2D projection uses, plus a span limit inside the walls
+    const cellsPerUnit = Math.min((NY * 0.31) / height, (NX * 0.25) / len, (NZ * 0.6) / span);
+    const centre = { x: NX * 0.28, y: (NY - 1) / 2, z: (NZ - 1) / 2 };
+    const mid = { x: (lo.x + hi.x) / 2, y: (lo.y + hi.y) / 2, z: (lo.z + hi.z) / 2 };
+    const toLattice = (t) => ({ x: centre.x + (t.x - mid.x) * cellsPerUnit, y: centre.y + (t.y - mid.y) * cellsPerUnit, z: centre.z + (t.z - mid.z) * cellsPerUnit });
+    const fromLattice = (lx, ly, lz) => ({ x: mid.x + (lx - centre.x) / cellsPerUnit, y: mid.y + (ly - centre.y) / cellsPerUnit, z: mid.z + (lz - centre.z) / cellsPerUnit });
+
+    const solid = new Uint8Array(NX * NY * NZ);
+    const raycaster = new THREE.Raycaster();
+    const dir = toModel(0, 0, 1).normalize();
+    const lmin = toLattice(lo);
+    const lmax = toLattice(hi);
+    const x0 = Math.max(0, Math.floor(lmin.x));
+    const x1 = Math.min(NX - 1, Math.ceil(lmax.x));
+    const y0 = Math.max(0, Math.floor(lmin.y));
+    const y1 = Math.min(NY - 1, Math.ceil(lmax.y));
+    let filled = 0;
+    for (let ly = y0; ly <= y1; ly += 1) {
+      for (let lx = x0; lx <= x1; lx += 1) {
+        const t = fromLattice(lx + 0.5, ly + 0.5, 0);
+        const origin = toModel(t.x, t.y, lo.z - 1);
+        raycaster.set(origin, dir);
+        raycaster.far = span + 2;
+        const hits = raycaster.intersectObject(scene, true).map((h) => toLattice(toTunnel(h.point)).z).sort((a, b) => a - b);
+        if (hits.length < 2) continue;
+        // even-odd fill; an odd count (open mesh) falls back to first..last
+        const pairs = [];
+        if (hits.length % 2 === 0) for (let i = 0; i < hits.length; i += 2) pairs.push([hits[i], hits[i + 1]]);
+        else pairs.push([hits[0], hits[hits.length - 1]]);
+        for (const [za, zb] of pairs) {
+          for (let lz = Math.max(0, Math.round(za)); lz <= Math.min(NZ - 1, Math.round(zb)); lz += 1) {
+            solid[lx + ly * NX + lz * NX * NY] = 1;
+            filled += 1;
+          }
+        }
+      }
+    }
+    this.voxelCache = { key, solid, filled };
+    return solid;
   }
 
   normaliseScene(source) {
@@ -515,7 +601,9 @@ export class ModelImporter {
     this.mask.setFromBinary(binary);
     this.onMask?.();
     this.onFlowReset?.();
-    this.setStatus('ready', `${axis.toUpperCase()} projection sent to the wind tunnel`);
+    this.setStatus('ready', this.isImage
+      ? `${axis.toUpperCase()} projection sent to the wind tunnel`
+      : `${axis.toUpperCase()} view in 2D · the whole model in 3D`);
   }
 
   toTunnelMask(pixels) {

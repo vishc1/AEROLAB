@@ -232,7 +232,10 @@ export function findShape(text) {
     for (const alias of shape.aliases) {
       const a = alias.toLowerCase();
       const hit = query === a || query.includes(` ${a} `) || query.startsWith(`${a} `) || query.endsWith(` ${a}`) || query === `${a}s` || query.endsWith(` ${a}s`);
-      if (hit && a.length > bestAlias.length) {
+      // Only claim the match when the alias explains the whole description.
+      // "tesla cybertruck" leaves "cybertruck" over, so Claude draws it instead.
+      const rest = query.replace(a, ' ').replace(/\bs\b/, ' ').replace(/\s+/g, ' ').trim();
+      if (hit && !rest && a.length > bestAlias.length) {
         best = shape;
         bestAlias = a;
       }

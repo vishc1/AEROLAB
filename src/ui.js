@@ -115,7 +115,7 @@ export function createUI(store, actions) {
     document.body.classList.toggle('is-camera', s.input === 'camera');
     document.body.classList.toggle('is-model', s.input === 'model');
     $('gl3d-canvas').hidden = !is3d;
-    $('build-chips').hidden = !is3d;
+    $('build-chips').hidden = !is3d || s.input === 'model';
     const sketching = is3d && s.build === 'sketch';
     document.body.classList.toggle('build-sketch', sketching);
     $('sketch-dock').hidden = !sketching;

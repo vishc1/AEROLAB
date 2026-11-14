@@ -120,6 +120,14 @@ function cancelBenchmark() {
 
 function rebuild3d() {
   if (!sim3d || store.state.dim !== '3d') return;
+  // An imported model is tested whole, not as an extruded silhouette.
+  if (store.state.input === 'model' && modelImporter?.modelScene && !modelImporter.isImage) {
+    const solid = modelImporter.voxelize();
+    if (solid) {
+      sim3d.setVoxels(solid);
+      return;
+    }
+  }
   if (sketchDock) sim3d.setPlanform(sketchDock.plan);
   sim3d.setObstacle(mask.getCpuMask(), mask.width, mask.height, store.state.build);
 }

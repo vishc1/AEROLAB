@@ -114,6 +114,29 @@ export class Sim3D {
     return plan;
   }
 
+  /** Use a voxel body built elsewhere (an imported 3D model), as is. */
+  setVoxels(solid) {
+    this.mode = 'model';
+    const prev = this.solid.slice();
+    this.solid.fill(0);
+    for (let i = 0; i < N; i += 1) {
+      const x = i % NX;
+      const y = ((i / NX) | 0) % NY;
+      const z = (i / (NX * NY)) | 0;
+      if (solid[i] && x > 1 && x < NX - 2 && y > 0 && y < NY - 1 && z > 0 && z < NZ - 1) this.solid[i] = 1;
+    }
+    for (let i = 0; i < N; i += 1) {
+      if (prev[i] && !this.solid[i]) {
+        for (let k = 0; k < 19; k += 1) this.f[k * N + i] = feq(k, 1, this.inlet, 0, 0);
+      }
+    }
+    this.analyseGeometry();
+    this.cd = 0;
+    this.cl = 0;
+    this.samples = 0;
+    this.history = [];
+  }
+
   /** Lift the 2D mask (bottom-up, w*h) into the voxel grid. */
   setObstacle(mask2d, w, h, mode = this.mode) {
     this.mode = mode;

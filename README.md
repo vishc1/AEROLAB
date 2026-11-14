@@ -70,7 +70,7 @@ npm run preview
 - Largest-object cleanup, hole filling, temporal smoothing and outline-quality diagnostics
 - Three-frame presence confirmation and automatic obstacle/wake clearing when the object leaves
 - Vertical tracking: moving the real object up or down moves its tunnel silhouette too
-- Blender glTF (`.glb`) upload with mesh statistics and front, side and top wind projections
+- Blender glTF (`.glb`) upload with mesh statistics and front, side and top wind projections; in 3D the mesh is voxelised whole (ray-cast fill into the lattice) rather than extruded from its silhouette
 - Interactive 3D model inspection plus phone AR placement through `<model-viewer>`
 - PNG, JPG, WebP and SVG uploads become textured palm decals
 - Hand AR anchors the uploaded model or image to MediaPipe palm position, rotation and scale
