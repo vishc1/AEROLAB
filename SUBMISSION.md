@@ -1,7 +1,7 @@
 # AEROLAB — submission notes
 
 **Live:** https://slipstream-indol.vercel.app
-**Code:** https://github.com/vishc1/TinkerIt
+**Code:** https://github.com/vishc1/AEROLAB
 **Tracks:** Education (primary), Sustainability, New Frontiers
 
 ## One line
