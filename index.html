@@ -165,7 +165,7 @@
                     <canvas id="gl3d-canvas" class="gl3d" hidden aria-label="3D wind tunnel view. Drag to orbit, scroll to zoom."></canvas>
                     <div id="build-chips" class="build-chips" hidden>
                       <span>BUILD</span>
-                      <button class="shape-chip is-active" data-build="sketch" type="button">Sketch</button>
+                      <button class="shape-chip is-active" data-build="sketch" type="button">Sketch</button><button type="button" class="hint" data-hint="How the 3D body is made from your drawing. Sketch: side profile × top planform. Wing: a straight wing from the profile. Extrude: push the profile straight back. Revolve: spin the profile around its axis into a body like a fuselage or ball." aria-label="What is this?">?</button>
                       <button class="shape-chip" data-build="wing" type="button">Wing</button>
                       <button class="shape-chip" data-build="wall" type="button">Extrude</button>
                       <button class="shape-chip" data-build="revolve" type="button">Revolve</button>
@@ -173,11 +173,11 @@
 
                     <div id="sketch-dock" class="sketch-dock" hidden>
                       <div class="dock-pane">
-                        <span class="dock-label">SIDE VIEW · draw the profile</span>
+                        <span class="dock-label">SIDE VIEW · draw the profile <button type="button" class="hint" data-hint="The shape seen from the side, as the 2D tunnel sees it. Draw here and the 3D body is built from this profile. The wind comes from the left." aria-label="What is this?">?</button></span>
                         <canvas id="side-canvas" aria-label="Side view sketch"></canvas>
                       </div>
                       <div class="dock-pane" id="plan-pane">
-                        <span class="dock-label">TOP VIEW · draw the planform</span>
+                        <span class="dock-label">TOP VIEW · draw the planform <button type="button" class="hint" data-hint="The shape seen from above: how wide the body is along its length. For a wing this is the planform. Pick a preset or draw one, and Mirror keeps the two halves symmetric." aria-label="What is this?">?</button></span>
                         <canvas id="plan-canvas" aria-label="Top view sketch"></canvas>
                         <div class="dock-chips">
                           <button class="shape-chip is-active" data-plan="straight" type="button">Straight</button>
@@ -185,7 +185,7 @@
                           <button class="shape-chip" data-plan="swept" type="button">Swept</button>
                           <button class="shape-chip" data-plan="delta" type="button">Delta</button>
                           <button class="shape-chip" data-plan="ellipse" type="button">Ellipse</button>
-                          <button class="shape-chip shape-toggle" id="plan-sym" type="button" aria-pressed="true">Mirror</button>
+                          <button class="shape-chip shape-toggle" id="plan-sym" type="button" aria-pressed="true">Mirror</button><button type="button" class="hint" data-hint="Planform presets: Straight keeps the span constant. Tapered narrows toward the tips, which cuts tip losses. Swept angles the wing back like a jet. Delta is a triangle. Ellipse spreads lift evenly for the lowest induced drag, like the Spitfire. Mirror copies one half to the other." aria-label="What is this?">?</button>
                           <button class="shape-chip shape-ghost" id="plan-clear" type="button">Clear</button>
                         </div>
                       </div>
