@@ -48,6 +48,7 @@ npm run preview
 
 ## Highlights
 
+- Camera click-to-cut-out: MediaPipe interactive segmentation on-device, with a Claude vision fallback (`api/outline.js`) that traces the clicked object from one frame when the local model cannot lock
 - Describe and race: type two objects ("a teardrop" vs "a brick"), each is drawn as a silhouette (built-in library of 24 shapes, Claude draws anything else via `api/shapes.js`), tested in turn and compared in drag, litres of fuel and kg of CO₂. With the camera in hand mode the object appears in your palm and moves with it
 - Five guided missions with a settled baseline, live progress and a lesson on completion
 - Road panel: drag coefficient → kW, L/100 km and g CO₂/km for a car at 100 km/h

@@ -21,6 +21,7 @@ Every physics class explains drag and lift with a diagram. Almost none can show 
 - **AI flow coach.** After each five-second test, Claude reads the numbers and the silhouette and explains, in two sentences a 14-year-old can use, what the air did and one change to try.
 - **Class rooms.** A four-letter code puts a whole class on one live leaderboard. Share any design as a 200-character link that pins it as the baseline to beat. Export a report card PNG.
 - A physics primer page (`/physics.html`) that explains drag, wakes, lift, Reynolds number, vorticity, the solver and the drag-to-fuel chain, each tied to the control that shows it, so students and judges can check the science.
+- Click any object in the camera and it is cut out on-device with MediaPipe's interactive segmenter; if that cannot lock, the frame goes to Claude with your click marked and Claude returns the outline. White object on a white wall still works.
 - Describe and race: name two objects and the tunnel draws them, holds them in your palm through the camera if you want, tests each one and tells you which wins and what the difference costs in fuel and CO₂ over 10,000 km. Common objects are built in; anything unusual is drawn by Claude.
 
 ## How we built it
@@ -52,4 +53,5 @@ Teacher dashboards for the class rooms, a Reynolds-number mission in 3D, accessi
 5. Create a class room, post the score, open the invite link on a phone. Same board.
 6. Click Share design, open the link in a new tab: the shape appears with "beat it".
 7. Switch on "In my hand", race "a bus" vs "a sports car": each one appears in your palm through the camera before it is tested.
-8. Export the report card.
+8. Hold up any object, click it: MediaPipe cuts it out on-device, or Claude traces it if the light is bad. Run the test on your own phone.
+9. Export the report card.

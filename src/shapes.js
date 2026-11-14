@@ -227,19 +227,21 @@ export function findShape(text) {
   const query = normaliseText(text);
   if (!query) return null;
   let best = null;
-  let bestLength = 0;
+  let bestAlias = '';
   for (const shape of SHAPES) {
     for (const alias of shape.aliases) {
       const a = alias.toLowerCase();
       const hit = query === a || query.includes(` ${a} `) || query.startsWith(`${a} `) || query.endsWith(` ${a}`) || query === `${a}s` || query.endsWith(` ${a}s`);
-      if (hit && a.length > bestLength) {
+      if (hit && a.length > bestAlias.length) {
         best = shape;
-        bestLength = a.length;
+        bestAlias = a;
       }
     }
   }
   if (!best) return null;
-  return { id: best.id, label: best.label, points: best.build(), why: best.why, source: 'library' };
+  // Call it what the user called it ("Kayak"), not the library's family name ("Leaf").
+  const label = bestAlias.replace(/\b\w/g, (ch) => ch.toUpperCase());
+  return { id: best.id, label, points: best.build(), why: best.why, source: 'library' };
 }
 
 /** Example pairs shown as chips. */
