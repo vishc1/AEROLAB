@@ -18,6 +18,7 @@ import { createShare } from './share.js';
 import { createReport } from './report.js';
 import { createTour } from './tour.js';
 import { createClassroom } from './classroom.js';
+import { createRace } from './race.js';
 import { efficiency } from './leaderboard.js';
 import { roadImpact } from './impact.js';
 
@@ -52,7 +53,12 @@ let impact = null;
 let share = null;
 let report = null;
 let classroom = null;
+let race = null;
 let captureRequests = [];
+
+function setAutoName(name) {
+  autoName = name;
+}
 
 /** Resolves with a PNG data URL of the next rendered tunnel frame. */
 function captureFrame() {
@@ -384,6 +390,16 @@ function init() {
   });
   createTour();
   classroom = createClassroom();
+  race = createRace(store, {
+    mask,
+    camera,
+    impact,
+    startBenchmark,
+    setInput,
+    setAutoName,
+    clearFlow,
+    syncStatic: () => ui?.syncStatic(),
+  });
   createDemo({
     store,
     actions: {
@@ -453,6 +469,9 @@ function init() {
     },
     get classroom() {
       return classroom;
+    },
+    get race() {
+      return race;
     },
     captureFrame,
   };
@@ -610,6 +629,7 @@ function init() {
       ui.tick();
       missions.tick();
       impact.tick();
+      race.tick();
       lastUi = now;
     }
   };

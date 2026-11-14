@@ -65,6 +65,7 @@ export class CameraTracker {
     this.handLandmarker = null;
     this.handLoading = null;
     this.handCanvas = document.createElement('canvas');
+    this.heldShape = null;
     this.pickingColor = false;
     this.bindEvents();
   }
@@ -465,6 +466,94 @@ export class CameraTracker {
     return this.handLoading;
   }
 
+  /** An object described in words that rides in the user's palm. */
+  setHeldShape(shape) {
+    this.heldShape = shape;
+    this.confidence = null;
+    this.validFrames = 0;
+    if (shape) this.setPrompt(`Show an open palm — ${shape.label} will appear in it`);
+    else if (this.stream) this.setPrompt('Show one open hand — MediaPipe will build its tunnel silhouette');
+  }
+
+  palmPose(landmarks) {
+    const ids = [0, 5, 9, 13, 17];
+    let cx = 0;
+    let cy = 0;
+    for (const i of ids) {
+      cx += landmarks[i].x;
+      cy += landmarks[i].y;
+    }
+    cx /= ids.length;
+    cy /= ids.length;
+    const palm = Math.hypot(landmarks[5].x - landmarks[17].x, (landmarks[5].y - landmarks[17].y) * (VH / VW));
+    return { cx, cy, palm };
+  }
+
+  heldPolygon(landmarks, W, H) {
+    const pose = this.palmPose(landmarks);
+    const pts = this.heldShape.points;
+    let minX = 1;
+    let maxX = 0;
+    let minY = 1;
+    let maxY = 0;
+    for (const [x, y] of pts) {
+      minX = Math.min(minX, x);
+      maxX = Math.max(maxX, x);
+      minY = Math.min(minY, y);
+      maxY = Math.max(maxY, y);
+    }
+    const sw = Math.max(1e-3, maxX - minX);
+    const sh = Math.max(1e-3, maxY - minY);
+    const size = Math.min(0.9, Math.max(0.22, pose.palm * 2.6));
+    const scale = Math.min((size * H) / sh, ((size * 1.6) * H) / sw);
+    const cx = pose.cx * W;
+    const cy = (pose.cy - 0.04) * H;
+    return pts.map(([x, y]) => [cx + (x - (minX + sw / 2)) * scale, cy + (y - (minY + sh / 2)) * scale]);
+  }
+
+  heldMask(landmarks, W, H) {
+    const canvas = this.handCanvas;
+    if (canvas.width !== W || canvas.height !== H) {
+      canvas.width = W;
+      canvas.height = H;
+    }
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    context.clearRect(0, 0, W, H);
+    if (!landmarks?.length) return new Uint8Array(W * H);
+    const poly = this.heldPolygon(landmarks, W, H);
+    context.fillStyle = '#fff';
+    context.beginPath();
+    poly.forEach(([x, y], i) => (i ? context.lineTo(x, y) : context.moveTo(x, y)));
+    context.closePath();
+    context.fill();
+    const pixels = context.getImageData(0, 0, W, H).data;
+    const raw = new Uint8Array(W * H);
+    for (let index = 0; index < raw.length; index += 1) raw[index] = pixels[index * 4 + 3] > 40 ? 1 : 0;
+    return raw;
+  }
+
+  drawHeldOverlay(landmarks) {
+    if (!landmarks?.length) return;
+    const ctx = this.feedCtx;
+    const poly = this.heldPolygon(landmarks, VW, VH);
+    ctx.save();
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    poly.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(217, 255, 63, 0.28)';
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#d9ff3f';
+    ctx.stroke();
+    const pose = this.palmPose(landmarks);
+    ctx.font = '600 11px ui-monospace, monospace';
+    ctx.fillStyle = '#d9ff3f';
+    ctx.textAlign = 'center';
+    ctx.fillText(this.heldShape.label.toUpperCase(), pose.cx * VW, Math.max(12, (pose.cy - 0.04) * VH - 0.5 * Math.min(0.9, Math.max(0.22, pose.palm * 2.6)) * VH - 8));
+    ctx.restore();
+  }
+
   handMask(landmarks, W, H) {
     const canvas = this.handCanvas;
     if (canvas.width !== W || canvas.height !== H) {
@@ -568,7 +657,12 @@ export class CameraTracker {
       } catch (error) {
         console.error(error);
       }
-      raw = this.handMask(landmarks, W, H);
+      if (this.heldShape) {
+        raw = this.heldMask(landmarks, W, H);
+        this.drawHeldOverlay(landmarks);
+      } else {
+        raw = this.handMask(landmarks, W, H);
+      }
     } else {
       raw = new Uint8Array(size);
       for (let y = 0; y < H; y += 1) {
@@ -624,7 +718,11 @@ export class CameraTracker {
         this.lastValidAt = now;
         this.usable = true;
         this.$('cam-state').textContent = 'TRACKING';
-        this.setPrompt('Object isolated — move it up or down, then freeze the shape');
+        this.setPrompt(
+          this.heldShape
+            ? `Holding ${this.heldShape.label} — keep your palm open and still`
+            : 'Object isolated — move it up or down, then freeze the shape',
+        );
         replaced = true;
       }
     } else {
