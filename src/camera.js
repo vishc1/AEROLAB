@@ -447,6 +447,16 @@ export class CameraTracker {
     this.setStatus('warn', 'Click the object in the video');
   }
 
+  /**
+   * The camera frame is 3:2 but the tunnel grid is 2:1. Mapping the frame onto
+   * the full grid stretches every shape sideways, so camera pixels live in a
+   * centred sub-grid of `wc` columns instead.
+   */
+  camGrid(W, H) {
+    const wc = Math.min(W, Math.round((H * VW) / VH));
+    return { wc, off: Math.floor((W - wc) / 2) };
+  }
+
   /** Start downloading the models early so the camera feels instant later. */
   warm() {
     if (this.$('cam-detect').value === 'hand') this.initHandTracking();
@@ -518,35 +528,92 @@ export class CameraTracker {
     const data = mask.getAsUint8Array();
     const mw = mask.width;
     const mh = mask.height;
-    // Whatever class the clicked pixel belongs to is "the object".
-    const px = Math.min(mw - 1, Math.floor(this.segPoint.x * mw));
-    const py = Math.min(mh - 1, Math.floor(this.segPoint.y * mh));
-    const fg = data[px + py * mw];
+    const total = mw * mh;
+    // The model labels two classes; the object is always the smaller one.
+    let zeros = 0;
+    for (let i = 0; i < total; i += 1) if (data[i] === 0) zeros += 1;
+    const fg = zeros <= total / 2 ? 0 : data[total - 1] === 0 ? 255 : data[total - 1];
+    const cap = new Uint8Array(total);
+    let count = 0;
+    for (let i = 0; i < total; i += 1) {
+      if (data[i] === fg) {
+        cap[i] = 1;
+        count += 1;
+      }
+    }
+    mask.close?.();
+    if (count < total * 0.002 || count > total * 0.6) return new Uint8Array(W * H);
+
+    // The model tends to grab the middle of an object. Grow outward into
+    // neighbouring pixels of a similar colour so a phone becomes a whole phone.
+    if (mw === VW && mh === VH) this.growByColour(cap, count, mw, mh);
+
+    const { wc, off } = this.camGrid(W, H);
     const raw = new Uint8Array(W * H);
     let n = 0;
     let sx = 0;
     let sy = 0;
     for (let y = 0; y < H; y += 1) {
       const my = Math.min(mh - 1, Math.floor((y / H) * mh));
-      for (let x = 0; x < W; x += 1) {
-        const mx = Math.min(mw - 1, Math.floor((x / W) * mw));
-        if (data[mx + my * mw] === fg) {
+      for (let x = off; x < off + wc; x += 1) {
+        const mx = Math.min(mw - 1, Math.floor(((x - off) / wc) * mw));
+        if (cap[mx + my * mw]) {
           raw[x + y * W] = 1;
           n += 1;
-          sx += x;
-          sy += y;
+          sx += mx;
+          sy += my;
         }
       }
     }
-    mask.close?.();
-    const coverage = n / (W * H);
-    if (coverage > 0.6 || coverage < 0.002) return new Uint8Array(W * H);
-    // Follow the object: nudge the click point toward the mask centroid.
-    const cx = sx / n / W;
-    const cy = sy / n / H;
-    this.segPoint = { x: this.segPoint.x * 0.4 + cx * 0.6, y: this.segPoint.y * 0.4 + cy * 0.6 };
+    if (!n) return raw;
+    // Follow the object: nudge the click point toward the mask centroid, but
+    // only when the centroid is itself on the object (not between two blobs).
+    const cx = sx / n / mw;
+    const cy = sy / n / mh;
+    const ci = Math.min(mw - 1, Math.floor(cx * mw)) + Math.min(mh - 1, Math.floor(cy * mh)) * mw;
+    if (cap[ci]) this.segPoint = { x: this.segPoint.x * 0.4 + cx * 0.6, y: this.segPoint.y * 0.4 + cy * 0.6 };
     this.segLocked = true;
     return raw;
+  }
+
+  growByColour(cap, seedCount, w, h) {
+    const d = this.captureCtx.getImageData(0, 0, w, h).data;
+    let r = 0;
+    let g = 0;
+    let b = 0;
+    for (let i = 0; i < w * h; i += 1) {
+      if (!cap[i]) continue;
+      r += d[i * 4];
+      g += d[i * 4 + 1];
+      b += d[i * 4 + 2];
+    }
+    r /= seedCount;
+    g /= seedCount;
+    b /= seedCount;
+    const limit = Math.min(w * h * 0.45, seedCount * 3);
+    const queue = new Int32Array(w * h);
+    let head = 0;
+    let tail = 0;
+    for (let i = 0; i < w * h; i += 1) if (cap[i]) queue[tail++] = i;
+    let added = 0;
+    const close = (i) => {
+      const dr = d[i * 4] - r;
+      const dg = d[i * 4 + 1] - g;
+      const db = d[i * 4 + 2] - b;
+      return dr * dr + dg * dg + db * db < 2600; // about 50 in RGB distance
+    };
+    while (head < tail && seedCount + added < limit) {
+      const i = queue[head++];
+      const x = i % w;
+      const y = (i / w) | 0;
+      const around = [x > 0 ? i - 1 : -1, x < w - 1 ? i + 1 : -1, y > 0 ? i - w : -1, y < h - 1 ? i + w : -1];
+      for (const j of around) {
+        if (j < 0 || cap[j] || !close(j)) continue;
+        cap[j] = 1;
+        added += 1;
+        queue[tail++] = j;
+      }
+    }
   }
 
   async initHandTracking() {
@@ -635,7 +702,8 @@ export class CameraTracker {
     const sh = Math.max(1e-3, maxY - minY);
     const size = Math.min(0.9, Math.max(0.22, pose.palm * 2.6));
     const scale = Math.min((size * H) / sh, ((size * 1.6) * H) / sw);
-    const cx = pose.cx * W;
+    const grid = this.camGrid(W, H);
+    const cx = grid.off + pose.cx * grid.wc;
     const cy = (pose.cy - 0.04) * H;
     return pts.map(([x, y]) => [cx + (x - (minX + sw / 2)) * scale, cy + (y - (minY + sh / 2)) * scale]);
   }
@@ -693,7 +761,8 @@ export class CameraTracker {
     context.clearRect(0, 0, W, H);
     if (!landmarks?.length) return new Uint8Array(W * H);
 
-    const point = (index) => [landmarks[index].x * W, landmarks[index].y * H];
+    const { wc, off } = this.camGrid(W, H);
+    const point = (index) => [off + landmarks[index].x * wc, landmarks[index].y * H];
     context.fillStyle = '#fff';
     context.strokeStyle = '#fff';
     context.lineCap = 'round';
@@ -770,8 +839,8 @@ export class CameraTracker {
     const threshold = Number(this.$('cam-tol').value);
     const object = mode === 'object';
     const sampleHsv = rgbToHsv(this.selected.r, this.selected.g, this.selected.b);
-    const padL = Math.round(W * 0.05);
-    const padR = Math.round(W * 0.06);
+    const padL = Math.round(this.camGrid(W, H).wc * 0.05);
+    const padR = Math.round(this.camGrid(W, H).wc * 0.06);
     const padY = Math.round(H * 0.03);
 
     let raw;
@@ -796,13 +865,14 @@ export class CameraTracker {
       // Interactive segmentation already produced the mask.
     } else {
       raw = new Uint8Array(size);
+      const { wc, off } = this.camGrid(W, H);
       for (let y = 0; y < H; y += 1) {
         const vy = Math.min(VH - 1, Math.floor((y / H) * VH));
-        for (let x = 0; x < W; x += 1) {
-          const vx = Math.min(VW - 1, Math.floor((x / W) * VW));
+        for (let x = off; x < off + wc; x += 1) {
+          const vx = Math.min(VW - 1, Math.floor(((x - off) / wc) * VW));
           const p = (vx + vy * VW) * 4;
           const match = this.matches(d[p], d[p + 1], d[p + 2], threshold, sampleHsv);
-          if ((object ? match : !match) && x > padL && x < W - padR && y > padY && y < H - padY) raw[x + y * W] = 1;
+          if ((object ? match : !match) && x > off + padL && x < off + wc - padR && y > padY && y < H - padY) raw[x + y * W] = 1;
         }
       }
     }
@@ -872,10 +942,11 @@ export class CameraTracker {
 
     const pw = (this.preview.width = VW);
     const ph = (this.preview.height = VH);
+    const grid = this.camGrid(W, H);
     const overlay = this.previewCtx.createImageData(pw, ph);
     for (let py = 0; py < ph; py += 1) {
       for (let px = 0; px < pw; px += 1) {
-        const gx = Math.min(W - 1, Math.floor((px / pw) * W));
+        const gx = Math.min(W - 1, grid.off + Math.floor((px / pw) * grid.wc));
         const gy = Math.min(H - 1, Math.floor((py / ph) * H));
         if (valid && clean[gx + gy * W]) {
           const p = (px + py * pw) * 4;
@@ -952,7 +1023,7 @@ export class CameraTracker {
     }
 
     const anchor = this.trackedSourceCenter || (this.selectedPoint
-      ? { x: this.selectedPoint.x * W, y: this.selectedPoint.y * H }
+      ? { x: this.camGrid(W, H).off + this.selectedPoint.x * this.camGrid(W, H).wc, y: this.selectedPoint.y * H }
       : { x: W * 0.5, y: H * 0.5 });
     const diagonal = Math.hypot(W, H);
     let winner = null;
@@ -1040,11 +1111,12 @@ export class CameraTracker {
   updateQuality(mask, W, H) {
     let count = 0;
     let edge = 0;
+    const { wc, off } = this.camGrid(W, H);
     for (let y = 2; y < H - 2; y += 1) {
       for (let x = 2; x < W - 2; x += 1) {
         if (!mask[x + y * W]) continue;
         count += 1;
-        if (x < W * 0.08 || x > W * 0.92 || y < H * 0.06 || y > H * 0.94) edge += 1;
+        if (x < off + wc * 0.08 || x > off + wc * 0.92 || y < H * 0.06 || y > H * 0.94) edge += 1;
       }
     }
     const coverage = count / (W * H);
