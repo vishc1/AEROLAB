@@ -2748,3 +2748,5 @@ body[data-view="large"] .benchmark { margin-top: 0; }
 @media (max-width: 520px) { .view-controls [data-view] { display: none; } }
 .stage-caption .view-controls { margin: 0 0 0 auto; padding: 0 12px 0 0; border-right: 0; order: 2; }
 .stage-caption .caption-data { order: 3; }
+.control-head { justify-content: flex-start; }
+.control-head output { margin-left: auto; }
