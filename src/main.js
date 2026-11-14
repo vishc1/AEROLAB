@@ -415,6 +415,38 @@ function init() {
     },
   });
 
+  // "Start here" launcher: one click into each headline feature.
+  const scrollTo = (id, block = 'center') => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block });
+  document.querySelectorAll('[data-start]').forEach((button) =>
+    button.addEventListener('click', async () => {
+      const kind = button.dataset.start;
+      try {
+        if (kind === 'race') {
+          const a = document.getElementById('race-a');
+          const b = document.getElementById('race-b');
+          if (!a.value.trim() && !b.value.trim()) {
+            a.value = 'a teardrop';
+            b.value = 'a brick';
+          }
+          scrollTo('race-dock');
+          race.start();
+        } else if (kind === 'hand' || kind === 'object') {
+          await setInput('camera');
+          document.getElementById(kind === 'hand' ? 'cam-mode-hand' : 'cam-mode-color')?.click();
+          scrollTo('camera-panel');
+        } else if (kind === 'model') {
+          await setInput('model');
+          scrollTo('model-panel');
+        } else if (kind === 'mission') {
+          missions.start('streamline');
+          scrollTo('stage');
+        }
+      } catch (error) {
+        console.warn('starter failed', error);
+      }
+    }),
+  );
+
   const resizeObserver = new ResizeObserver(resizeCanvas);
   resizeObserver.observe(stage);
   window.addEventListener('resize', resizeCanvas);
