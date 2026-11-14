@@ -2758,3 +2758,19 @@ body[data-view="large"] .benchmark { margin-top: 0; }
 .cam-engine[data-state="good"] { color: var(--mint); }
 .cam-engine[data-state="warn"] { color: var(--coral); }
 .cam-engine[data-state="bad"] { color: var(--coral); }
+
+/* brighter palette */
+:root {
+  --panel: #0a1916;
+  --panel-soft: #0d1f1a;
+  --line: rgba(230, 242, 224, 0.17);
+  --line-soft: rgba(230, 242, 224, 0.1);
+  --ink: #f6f3e8;
+  --muted: #b2c4b7;
+  --muted-2: #86998f;
+  --mint: #80f8d0;
+  --lime: #e2ff4a;
+}
+body { background: radial-gradient(1100px 620px at 72% -8%, rgba(34, 112, 76, 0.42), transparent 66%), radial-gradient(860px 560px at 4% 108%, rgba(18, 96, 88, 0.28), transparent 62%), linear-gradient(180deg, #08130f 0%, #071210 100%); }
+.explain-card { color: var(--ink); border-color: var(--line); }
+.lesson p, .race-head p, .notes-intro, .race-entry p, .starter span { color: var(--muted); }
