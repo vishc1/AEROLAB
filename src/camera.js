@@ -66,6 +66,10 @@ export class CameraTracker {
     this.handLoading = null;
     this.handCanvas = document.createElement('canvas');
     this.heldShape = null;
+    this.segmenter = null;
+    this.segLoading = null;
+    this.segPoint = null;
+    this.segLocked = false;
     this.pickingColor = false;
     this.bindEvents();
   }
@@ -250,6 +254,7 @@ export class CameraTracker {
     this.cameraRequest = request;
     this.starting = true;
     btn.textContent = 'Starting camera…';
+    this.warm();
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { width: 640, height: 480, facingMode: 'user' },
@@ -266,9 +271,15 @@ export class CameraTracker {
       this.$('cam-freeze').disabled = false;
       this.frozen = false;
       this.$('cam-state').textContent = 'SEARCHING';
-      this.setPrompt('Click directly on the ruler or object in the video to select its exact color');
-      this.setStatus('warn', 'Object not selected yet · click it in the video');
-      if (this.$('cam-detect').value === 'hand') this.initHandTracking();
+      if (this.$('cam-detect').value === 'hand') {
+        this.initHandTracking();
+      } else if (!this.colorProfile) {
+        // First time in colour mode: go straight to picking, nothing to read first.
+        this.enterPickMode();
+      } else {
+        this.setPrompt('Hold the object up. Click it again in the video if the outline drifts');
+        this.setStatus('warn', 'Looking for the object');
+      }
     } catch (error) {
       if (request !== this.cameraRequest) return;
       this.stream = null;
@@ -332,7 +343,14 @@ export class CameraTracker {
       return false;
     }
     if (!this.frozen && !this.usable) {
-      this.setPrompt('Finish calibration — the outline is not ready yet');
+      if (this.$('cam-detect').value !== 'hand' && !this.colorProfile) {
+        this.enterPickMode();
+        this.setPrompt('Click your object in the video first, then run the test');
+      } else if (this.$('cam-detect').value === 'hand') {
+        this.setPrompt('Show an open hand to the camera, then run the test');
+      } else {
+        this.setPrompt('The outline is not steady yet. Hold the object still against a plain background, or raise the tolerance');
+      }
       return false;
     }
     if (!this.frozen) this.setFrozen(true);
@@ -383,6 +401,15 @@ export class CameraTracker {
       const x = Math.max(0, Math.min(VW - 1, Math.floor(((event.clientX - rect.left) / rect.width) * VW)));
       const y = Math.max(0, Math.min(VH - 1, Math.floor(((event.clientY - rect.top) / rect.height) * VH)));
       this.sampleAt(x, y);
+      if (this.$('cam-detect').value !== 'hand') {
+        this.segPoint = { x: x / VW, y: y / VH };
+        this.segLocked = false;
+        this.confidence = null;
+        this.validFrames = 0;
+        this.clearTrackedObjectQuietly();
+        if (this.segmenter) this.setPrompt('Locking onto the object. Hold it still for a second');
+        else this.initSegmenter();
+      }
     });
     this.syncDetectionMode();
   }
@@ -416,8 +443,110 @@ export class CameraTracker {
     this.pickingColor = true;
     this.feed.classList.add('is-picking');
     this.$('cam-pick-object').textContent = 'Now click the object ↑';
-    this.setPrompt('Click directly on the red ruler, phone, or clay object in the video');
-    this.setStatus('warn', 'Waiting for an object color sample');
+    this.setPrompt("Click the object in the video");
+    this.setStatus('warn', 'Click the object in the video');
+  }
+
+  /** Start downloading the models early so the camera feels instant later. */
+  warm() {
+    if (this.$('cam-detect').value === 'hand') this.initHandTracking();
+    else this.initSegmenter();
+  }
+
+  clearTrackedObjectQuietly() {
+    this.objectTracked = false;
+    this.trackedCoverage = 0;
+    this.trackedSourceCenter = null;
+    this.usable = false;
+  }
+
+  /**
+   * Click-to-segment: MediaPipe's interactive segmenter cuts out whatever was
+   * clicked, whatever its colour, and the point follows the object's centroid
+   * so it keeps tracking as it moves. Colour keying stays as the fallback.
+   */
+  async initSegmenter() {
+    if (this.segmenter) return this.segmenter;
+    if (this.segLoading) return this.segLoading;
+    this.segLoading = (async () => {
+      try {
+        const { FilesetResolver, InteractiveSegmenterLegacy } = await import('@mediapipe/tasks-vision');
+        const vision = await FilesetResolver.forVisionTasks(
+          'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.2/wasm',
+        );
+        const options = {
+          baseOptions: {
+            modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/interactive_segmenter/magic_touch/float32/1/magic_touch.tflite',
+            delegate: 'GPU',
+          },
+          outputCategoryMask: true,
+          outputConfidenceMasks: false,
+        };
+        if (this.segDelegate) options.baseOptions.delegate = this.segDelegate;
+        try {
+          this.segmenter = await InteractiveSegmenterLegacy.createFromOptions(vision, options);
+        } catch {
+          options.baseOptions.delegate = 'CPU';
+          this.segmenter = await InteractiveSegmenterLegacy.createFromOptions(vision, options);
+        }
+        if (this.stream && this.$('cam-detect').value !== 'hand') {
+          this.setPrompt(this.segPoint ? 'Locking onto the object. Hold it still for a second' : 'Click the object in the video');
+        }
+        return this.segmenter;
+      } catch (error) {
+        console.warn('Interactive segmenter unavailable, using colour keying', error);
+        return null;
+      } finally {
+        this.segLoading = null;
+      }
+    })();
+    return this.segLoading;
+  }
+
+  /** Returns a W×H binary mask of the clicked object, or null to fall back. */
+  segmentClicked(W, H) {
+    if (!this.segmenter || !this.segPoint) return null;
+    let result;
+    try {
+      result = this.segmenter.segment(this.capture, { keypoint: { x: this.segPoint.x, y: this.segPoint.y } });
+    } catch (error) {
+      console.warn(error);
+      return null;
+    }
+    const mask = result?.categoryMask;
+    if (!mask) return null;
+    const data = mask.getAsUint8Array();
+    const mw = mask.width;
+    const mh = mask.height;
+    // Whatever class the clicked pixel belongs to is "the object".
+    const px = Math.min(mw - 1, Math.floor(this.segPoint.x * mw));
+    const py = Math.min(mh - 1, Math.floor(this.segPoint.y * mh));
+    const fg = data[px + py * mw];
+    const raw = new Uint8Array(W * H);
+    let n = 0;
+    let sx = 0;
+    let sy = 0;
+    for (let y = 0; y < H; y += 1) {
+      const my = Math.min(mh - 1, Math.floor((y / H) * mh));
+      for (let x = 0; x < W; x += 1) {
+        const mx = Math.min(mw - 1, Math.floor((x / W) * mw));
+        if (data[mx + my * mw] === fg) {
+          raw[x + y * W] = 1;
+          n += 1;
+          sx += x;
+          sy += y;
+        }
+      }
+    }
+    mask.close?.();
+    const coverage = n / (W * H);
+    if (coverage > 0.6 || coverage < 0.002) return new Uint8Array(W * H);
+    // Follow the object: nudge the click point toward the mask centroid.
+    const cx = sx / n / W;
+    const cy = sy / n / H;
+    this.segPoint = { x: this.segPoint.x * 0.4 + cx * 0.6, y: this.segPoint.y * 0.4 + cy * 0.6 };
+    this.segLocked = true;
+    return raw;
   }
 
   async initHandTracking() {
@@ -663,6 +792,8 @@ export class CameraTracker {
       } else {
         raw = this.handMask(landmarks, W, H);
       }
+    } else if ((raw = this.segmentClicked(W, H))) {
+      // Interactive segmentation already produced the mask.
     } else {
       raw = new Uint8Array(size);
       for (let y = 0; y < H; y += 1) {
@@ -721,8 +852,11 @@ export class CameraTracker {
         this.setPrompt(
           this.heldShape
             ? `Holding ${this.heldShape.label} — keep your palm open and still`
-            : 'Object isolated — move it up or down, then freeze the shape',
+            : this.segLocked
+              ? 'Got it. Move the object up or down, then run the test or freeze the shape'
+              : 'Object isolated — move it up or down, then freeze the shape',
         );
+        if (this.segLocked) this.setStatus('good', 'Object locked · cut out by MediaPipe');
         replaced = true;
       }
     } else {

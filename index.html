@@ -90,7 +90,7 @@
             <span class="starters-label">Start here</span>
             <button class="starter" type="button" data-start="race"><b>Race two objects</b><span>Type “teardrop” vs “brick”. A winner in thirty seconds.</span></button>
             <button class="starter" type="button" data-start="hand"><b>Test your hand</b><span>Camera on, hold up a palm, the tunnel tests it live.</span></button>
-            <button class="starter" type="button" data-start="object"><b>Hold something up</b><span>A phone, a ruler, a toy. Click it in the video.</span></button>
+            <button class="starter" type="button" data-start="object"><b>Hold something up</b><span>A phone, a toy, a mug. Click it in the video and the tunnel cuts it out.</span></button>
             <button class="starter" type="button" data-start="model"><b>Blender model to AR</b><span>Drop a .glb, test three views, place it on your desk.</span></button>
             <button class="starter" type="button" data-start="mission"><b>First mission</b><span>Streamline a cylinder with a live target to hit.</span></button>
           </nav>
@@ -294,8 +294,8 @@
                     <div class="cam-controls">
                       <p id="cam-prompt" class="cam-prompt">Start the camera, then click directly on the object in the video.</p>
                       <div class="camera-mode-cards" role="group" aria-label="Camera tracking mode">
-                        <button id="cam-mode-color" class="is-active" type="button"><b>COLOR OBJECT</b><span>Ruler, phone, clay</span></button>
-                        <button id="cam-mode-hand" type="button"><b>HAND AI</b><span>Google MediaPipe</span></button>
+                        <button id="cam-mode-color" class="is-active" type="button"><b>Any object</b><span>Click it in the video</span></button>
+                        <button id="cam-mode-hand" type="button"><b>Your hand</b><span>Tracked by MediaPipe</span></button>
                       </div>
                       <div class="cam-row">
                         <button id="cam-start" class="shape-chip" type="button">Start camera</button>
@@ -406,6 +406,15 @@
                 </div>
 
                 <div class="stage-caption">
+                  <div class="view-controls" role="group" aria-label="Display size">
+                  <button type="button" class="view-btn" data-view="normal" aria-pressed="true" title="Tunnel beside the readouts">Normal</button>
+                  <button type="button" class="view-btn" data-view="large" aria-pressed="false" title="Full-width tunnel, readouts below">Big tunnel</button>
+                  <i class="view-sep"></i>
+                  <button type="button" class="view-btn" data-text="1" aria-pressed="true" title="Normal text">A</button>
+                  <button type="button" class="view-btn" data-text="1.25" aria-pressed="false" title="Larger numbers">A+</button>
+                  <button type="button" class="view-btn" data-text="1.5" aria-pressed="false" title="Largest numbers">A++</button>
+                </div>
+
                   <span class="caption-hints">
                     <kbd>Drag</kbd> sculpt
                     <kbd>Shift</kbd> erase
@@ -425,7 +434,7 @@
                 <div class="rail-scroll">
                 <div class="metric-block metric-drag">
                   <div class="metric-label">
-                    <span>Relative drag</span>
+                    <span>Relative drag <button type="button" class="hint" data-hint="Drag coefficient, Cd. The push-back from the air divided by speed², air density and the body height, so only the shape counts. Lower is cleaner. A cylinder is about 1, a good wing about 0.05." aria-label="What is this?">?</button></span>
                     <i>C<sub>d</sub></i>
                   </div>
                   <strong class="metric-value" id="cd-value">0.000</strong>
@@ -437,7 +446,7 @@
 
                 <div class="metric-block metric-lift">
                   <div class="metric-label">
-                    <span>Relative lift</span>
+                    <span>Relative lift <button type="button" class="hint" data-hint="Lift coefficient, Cl. The sideways push, positive upward. A tilted or curved shape makes lift by bending the air downward." aria-label="What is this?">?</button></span>
                     <i>C<sub>l</sub></i>
                   </div>
                   <strong class="metric-value" id="cl-value">0.000</strong>
@@ -450,26 +459,26 @@
 
                 <div class="rail-stats">
                   <div class="rail-stat">
-                    <span>Drag force</span>
+                    <span>Drag force <button type="button" class="hint" data-hint="The drag coefficient turned into newtons at the current wind speed." aria-label="What is this?">?</button></span>
                     <div><strong id="fd-value">0.0</strong><em>N</em></div>
                   </div>
                   <div class="rail-stat">
-                    <span>Lift force</span>
+                    <span>Lift force <button type="button" class="hint" data-hint="The lift coefficient turned into newtons at the current wind speed." aria-label="What is this?">?</button></span>
                     <div><strong id="fl-value">0.0</strong><em>N</em></div>
                   </div>
                   <div class="rail-stat">
-                    <span>Reynolds</span>
+                    <span>Reynolds <button type="button" class="hint" data-hint="Reynolds number: speed × size ÷ viscosity. Low means smooth, orderly flow. High means vortices and turbulence. It is what makes a small model behave like a full-size car." aria-label="What is this?">?</button></span>
                     <div><strong id="re-value">692</strong><em>Re</em></div>
                   </div>
                   <div class="rail-stat">
-                    <span>Lift / drag</span>
+                    <span>Lift / drag <button type="button" class="hint" data-hint="Lift divided by drag, a wing's efficiency. A glider reaches 40, an airliner about 17, a flat plate about 1." aria-label="What is this?">?</button></span>
                     <div><strong id="ld-value">0.00</strong><em>L/D</em></div>
                   </div>
                 </div>
 
                 <div class="rail-impact">
                   <div class="rail-heading">
-                    <span>At road speed</span>
+                    <span>At road speed <button type="button" class="hint" data-hint="What this drag would cost a car at 100 km/h: engine power spent pushing air, fuel per 100 km and CO₂ per km. Drag share only, with the assumptions listed in the Numerics panel." aria-label="What is this?">?</button></span>
                     <span class="rail-hint">car · 100 km/h · drag share</span>
                   </div>
                   <div class="impact-grid">
@@ -545,7 +554,7 @@
             <div class="lab-controls">
               <div class="control">
                 <div class="control-head">
-                  <label for="wind-slider">Wind speed</label>
+                  <label for="wind-slider">Wind speed</label><button type="button" class="hint" data-hint="How fast the air enters from the left, in metres per second. 18 m/s is about 65 km/h. Drag grows with the square of this." aria-label="What is this?">?</button>
                   <output id="wind-value" for="wind-slider">18.0 <em>m/s</em></output>
                 </div>
                 <input id="wind-slider" class="range" type="range" min="2" max="30" step="0.5" value="18" />
@@ -554,7 +563,7 @@
 
               <div class="control">
                 <div class="control-head">
-                  <label for="viscosity-slider">Viscosity</label>
+                  <label for="viscosity-slider">Viscosity</label><button type="button" class="hint" data-hint="How thick the air is. Raise it and the flow goes smooth and honey-like with no vortices. Lower it and the wake gets wild. This sets the Reynolds number." aria-label="What is this?">?</button>
                   <output id="viscosity-value" for="viscosity-slider">0.026 <em>m²/s</em></output>
                 </div>
                 <input id="viscosity-slider" class="range" type="range" min="0.004" max="0.2" step="0.002" value="0.026" />
@@ -563,7 +572,7 @@
 
               <div class="control">
                 <div class="control-head">
-                  <label for="density-slider">Tracers</label>
+                  <label for="density-slider">Tracers</label><button type="button" class="hint" data-hint="Particles that ride the velocity field so you can see the flow. Display only: they do not change the physics or the numbers." aria-label="What is this?">?</button>
                   <output id="density-value" for="density-slider">56,360</output>
                 </div>
                 <input id="density-slider" class="range" type="range" min="10" max="100" step="1" value="86" />
@@ -572,7 +581,7 @@
 
               <div class="control">
                 <div class="control-head">
-                  <label for="brush-slider">Brush</label>
+                  <label for="brush-slider">Brush</label><button type="button" class="hint" data-hint="Size of the sculpt and erase brush, in pixels. Drag in the tunnel to add solid, hold Shift to erase." aria-label="What is this?">?</button>
                   <output id="brush-value" for="brush-slider">14 <em>px</em></output>
                 </div>
                 <input id="brush-slider" class="range" type="range" min="4" max="40" step="1" value="14" />
@@ -581,7 +590,7 @@
 
               <div class="control control-grid">
                 <div class="control-head">
-                  <label for="resolution-slider">Solver grid</label>
+                  <label for="resolution-slider">Solver grid</label><button type="button" class="hint" data-hint="How many cells the simulation uses. Finer is more accurate but slower. 384 × 192 holds 60 FPS on most laptops." aria-label="What is this?">?</button>
                   <output id="resolution-value" for="resolution-slider">384 × 192</output>
                 </div>
                 <input id="resolution-slider" class="range" type="range" min="0" max="2" step="1" value="1" />
@@ -768,6 +777,8 @@
         </footer>
       </div>
     </div>
+
+    <div id="hint-tip" class="hint-tip" role="tooltip" hidden></div>
 
     <div id="docs-modal" class="modal" hidden>
       <div class="modal-backdrop" data-close-modal></div>

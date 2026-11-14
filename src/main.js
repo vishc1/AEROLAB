@@ -19,6 +19,7 @@ import { createReport } from './report.js';
 import { createTour } from './tour.js';
 import { createClassroom } from './classroom.js';
 import { createRace } from './race.js';
+import { initHints, initViewControls } from './hints.js';
 import { efficiency } from './leaderboard.js';
 import { roadImpact } from './impact.js';
 
@@ -363,6 +364,7 @@ function init() {
     setInput,
     selectPreset,
     syncStatic: () => ui?.syncStatic(),
+    maskVersion: () => mask.version,
   });
   impact = createImpactPanel(store, { mask, labelFor });
   share = createShare(store, {
@@ -389,6 +391,8 @@ function init() {
     baseline: () => impact.baseline,
   });
   createTour();
+  initHints();
+  initViewControls();
   classroom = createClassroom();
   race = createRace(store, {
     mask,

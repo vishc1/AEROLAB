@@ -6,7 +6,7 @@
  * Completing one reveals the lesson behind it.
  */
 const DONE_KEY = 'aerolab-missions';
-const SETTLE_MIN_MS = 3000; // never trust a baseline before the wake has formed
+const SETTLE_MIN_MS = 4000; // never trust a baseline before the wake has formed
 const SETTLE_MAX_MS = 9000; // but always start by then
 const SETTLE_WINDOW = 12; // samples that must agree within SETTLE_SPREAD
 const SETTLE_SPREAD = 0.08;
@@ -431,9 +431,18 @@ export function createMissions(store, actions) {
             cl: s.metrics.cl,
             re: s.metrics.re,
           };
+          active.baselineVersion = actions.maskVersion?.();
         }
       }
       const ev = evaluate();
+      // A sculpting mission only counts once the shape has actually changed,
+      // so a baseline that is still settling can never "beat itself".
+      if (['cd_reduce', 'cl_above', 'cd_below'].includes(active.mission.goal.type) && actions.maskVersion) {
+        if (actions.maskVersion() === active.baselineVersion) {
+          if (ev.met) ev.display = `${ev.display} · change the shape first`;
+          ev.met = false;
+        }
+      }
       if (ev.met && s.running) {
         active.hold += 1;
         if (active.hold >= HOLD_TICKS) {

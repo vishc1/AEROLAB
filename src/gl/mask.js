@@ -15,6 +15,7 @@ export class MaskEditor {
     this.height = size;
     this.dirty = true;
     this.cpuDirty = true;
+    this.version = 0;
     this.cpuMask = new Uint8Array(this.width * this.height);
     this.refLength = 0.6;
 
@@ -76,6 +77,7 @@ export class MaskEditor {
   markDirty() {
     this.dirty = true;
     this.cpuDirty = true;
+    this.version += 1;
   }
 
   clear() {
