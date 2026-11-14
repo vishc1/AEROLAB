@@ -4,3 +4,4 @@ dist/
 .vercel/
 server/data/
 .env*.local
+.env
