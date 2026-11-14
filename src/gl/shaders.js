@@ -253,8 +253,8 @@ void main() {
   float vort = clamp(abs(curl) * uCell / max(uInlet, 0.0001), 0.0, 1.0);
   float signedVort = clamp(curl * uCell / max(uInlet, 0.0001) * 2.2, -1.0, 1.0);
 
-  vec3 flowLow = vec3(0.030, 0.150, 0.255);
-  vec3 flowHigh = vec3(0.085, 0.470, 0.760);
+  vec3 flowLow = vec3(0.040, 0.195, 0.330);
+  vec3 flowHigh = vec3(0.110, 0.560, 0.900);
   vec3 flow = mix(flowLow, flowHigh, smoothstep(0.06, 1.35, speed));
   col += flow * (0.42 + 0.48 * pow(clamp(speed, 0.0, 1.0), 1.15));
 
@@ -407,9 +407,9 @@ float hash11(float p) {
 
 vec3 speedRamp(float s) {
   s = clamp(s, 0.0, 2.1);
-  vec3 low = vec3(0.040, 0.230, 0.520);
-  vec3 azure = vec3(0.130, 0.640, 0.940);
-  vec3 pale = vec3(0.560, 0.930, 0.970);
+  vec3 low = vec3(0.060, 0.290, 0.620);
+  vec3 azure = vec3(0.190, 0.740, 1.000);
+  vec3 pale = vec3(0.680, 0.980, 1.000);
   vec3 cream = vec3(0.980, 0.940, 0.800);
 
   if (s < 0.55) return mix(low, azure, smoothstep(0.0, 0.55, s));

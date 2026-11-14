@@ -2775,3 +2775,50 @@ body { background: radial-gradient(1100px 620px at 72% -8%, rgba(34, 112, 76, 0.
 .explain-card { color: var(--ink); border-color: var(--line); }
 .lesson p, .race-head p, .notes-intro, .race-entry p, .starter span { color: var(--muted); }
 .dock-label .hint, .build-chips .hint, .dock-chips .hint { border-color: rgba(120, 190, 205, 0.5); color: rgba(160, 210, 220, 0.9); }
+
+/* second brightness pass */
+:root {
+  --bg: #0b1916;
+  --panel: #10231e;
+  --panel-soft: #142c25;
+  --line: rgba(230, 242, 224, 0.22);
+  --line-soft: rgba(230, 242, 224, 0.13);
+  --ink: #f8f6ee;
+  --cream: #f7f0dc;
+  --muted: #c6d6c9;
+  --muted-2: #9db1a6;
+  --mint: #8dffd8;
+  --lime: #e9ff55;
+  --coral: #ffb492;
+  --orchid: #cfa9f0;
+}
+html { background: var(--bg); }
+body { background: radial-gradient(1200px 680px at 72% -8%, rgba(44, 140, 96, 0.5), transparent 66%), radial-gradient(900px 600px at 4% 108%, rgba(24, 120, 110, 0.36), transparent 62%), linear-gradient(180deg, #0b1916 0%, #0a1714 100%); }
+.lesson, .race-entry, .leaderboard, .coach-card, .num, .concept, .starters, .lab { background: var(--panel); }
+.shape-chip { border-color: rgba(230, 242, 224, 0.3); color: var(--ink); }
+.mission-chip { border-color: rgba(230, 242, 224, 0.3); color: var(--ink); }
+.tab-index, .board-row b, .rail-stat em, .control-head output em { color: var(--muted-2); }
+.impact-grid strong { color: var(--mint); }
+.site-footer { color: var(--muted-2); }
+
+/* colour accents on the lower sections */
+:root { --bg: #0d1f1b; }
+body { background: radial-gradient(1200px 720px at 72% -8%, rgba(60, 170, 120, 0.5), transparent 66%), radial-gradient(900px 640px at 4% 108%, rgba(40, 150, 140, 0.4), transparent 62%), radial-gradient(700px 500px at 50% 60%, rgba(120, 200, 90, 0.12), transparent 70%), linear-gradient(180deg, #0d1f1b 0%, #0b1b17 100%); }
+.lesson { border-top: 3px solid var(--mint); background: linear-gradient(180deg, rgba(141, 255, 216, 0.08), transparent 45%), var(--panel); }
+.lesson:nth-child(2) { border-top-color: var(--lime); background: linear-gradient(180deg, rgba(233, 255, 85, 0.08), transparent 45%), var(--panel); }
+.lesson:nth-child(3) { border-top-color: var(--coral); background: linear-gradient(180deg, rgba(255, 180, 146, 0.1), transparent 45%), var(--panel); }
+.lesson:nth-child(2) .lesson-tag { color: var(--lime); }
+.lesson:nth-child(3) .lesson-tag { color: var(--coral); }
+.note-index { color: var(--lime); }
+.note h3 { color: var(--cream); }
+.starter:nth-child(2) b { color: var(--lime); }
+.starter:nth-child(3) b { color: var(--mint); }
+.starter:nth-child(4) b { color: var(--coral); }
+.starter:nth-child(5) b { color: var(--orchid); }
+.starter:nth-child(6) b { color: var(--cream); }
+.leaderboard, .coach-card { background: linear-gradient(180deg, rgba(141, 255, 216, 0.06), transparent 50%), var(--panel); }
+.race-dock { background: linear-gradient(90deg, rgba(141, 255, 216, 0.1), rgba(233, 255, 85, 0.05) 60%, transparent); }
+.mission-dock { background: linear-gradient(90deg, rgba(233, 255, 85, 0.1), transparent 55%); }
+.workshop-head h2, .notes h2, .notes-head h2 { color: var(--mint); }
+.classroom .workshop-head h2 { color: var(--lime); }
+.notes-head h2 { color: var(--coral); }
