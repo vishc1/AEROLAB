@@ -750,7 +750,7 @@ export class CameraTracker {
 
   async initHandTracking() {
     if (this.handLandmarker) {
-      this.setPrompt('Show one open hand — MediaPipe will build its tunnel silhouette');
+      this.setPrompt('Show one or both hands — MediaPipe builds their tunnel silhouette');
       this.setStatus('good', 'MediaPipe ready · processed locally');
       return this.handLandmarker;
     }
@@ -768,7 +768,7 @@ export class CameraTracker {
             delegate: 'GPU',
           },
           runningMode: 'VIDEO',
-          numHands: 1,
+          numHands: 2,
           minHandDetectionConfidence: 0.55,
           minHandPresenceConfidence: 0.5,
           minTrackingConfidence: 0.5,
@@ -779,7 +779,7 @@ export class CameraTracker {
           options.baseOptions.delegate = 'CPU';
           this.handLandmarker = await HandLandmarker.createFromOptions(vision, options);
         }
-        this.setPrompt('Show one open hand — MediaPipe will build its tunnel silhouette');
+        this.setPrompt('Show one or both hands — MediaPipe builds their tunnel silhouette');
         this.setStatus('good', 'MediaPipe ready · processed locally');
         return this.handLandmarker;
       } catch (error) {
@@ -800,7 +800,7 @@ export class CameraTracker {
     this.confidence = null;
     this.validFrames = 0;
     if (shape) this.setPrompt(`Show an open palm — ${shape.label} will appear in it`);
-    else if (this.stream) this.setPrompt('Show one open hand — MediaPipe will build its tunnel silhouette');
+    else if (this.stream) this.setPrompt('Show one or both hands — MediaPipe builds their tunnel silhouette');
   }
 
   palmPose(landmarks) {
@@ -883,7 +883,8 @@ export class CameraTracker {
     ctx.restore();
   }
 
-  handMask(landmarks, W, H) {
+  /** Builds one silhouette from every detected hand (one or two). */
+  handMask(hands, W, H) {
     const canvas = this.handCanvas;
     if (canvas.width !== W || canvas.height !== H) {
       canvas.width = W;
@@ -891,8 +892,16 @@ export class CameraTracker {
     }
     const context = canvas.getContext('2d', { willReadFrequently: true });
     context.clearRect(0, 0, W, H);
-    if (!landmarks?.length) return new Uint8Array(W * H);
+    const list = Array.isArray(hands?.[0]) ? hands : hands?.length ? [hands] : [];
+    if (!list.length) return new Uint8Array(W * H);
+    for (const landmarks of list) this.drawHand(context, landmarks, W, H);
+    const pixels = context.getImageData(0, 0, W, H).data;
+    const raw = new Uint8Array(W * H);
+    for (let index = 0; index < raw.length; index += 1) raw[index] = pixels[index * 4 + 3] > 40 ? 1 : 0;
+    return raw;
+  }
 
+  drawHand(context, landmarks, W, H) {
     const { wc, off } = this.camGrid(W, H);
     const point = (index) => [off + landmarks[index].x * wc, landmarks[index].y * H];
     context.fillStyle = '#fff';
@@ -926,11 +935,6 @@ export class CameraTracker {
       context.arc(x, y, radius, 0, Math.PI * 2);
       context.fill();
     }
-
-    const pixels = context.getImageData(0, 0, W, H).data;
-    const raw = new Uint8Array(W * H);
-    for (let index = 0; index < raw.length; index += 1) raw[index] = pixels[index * 4 + 3] > 40 ? 1 : 0;
-    return raw;
   }
 
   matches(r, g, b, range, sample) {
@@ -981,17 +985,20 @@ export class CameraTracker {
         this.initHandTracking();
         return false;
       }
-      let landmarks = null;
+      let hands = [];
       try {
-        landmarks = this.handLandmarker.detectForVideo(this.capture, now).landmarks?.[0] || null;
+        hands = this.handLandmarker.detectForVideo(this.capture, now).landmarks || [];
       } catch (error) {
         console.error(error);
       }
+      // A held object rides in the first hand; a plain hand test uses every hand seen.
+      const landmarks = hands[0] || null;
       if (this.heldShape) {
         raw = this.heldMask(landmarks, W, H);
         this.drawHeldOverlay(landmarks);
       } else {
-        raw = this.handMask(landmarks, W, H);
+        raw = this.handMask(hands, W, H);
+        if (hands.length === 2) this.setEngine('MediaPipe tracking both hands', 'good');
       }
     } else if ((raw = this.segmentClicked(W, H))) {
       // Interactive segmentation already produced the mask.
@@ -1024,7 +1031,9 @@ export class CameraTracker {
     }
     const selectedComponent = object
       ? this.componentNearestSelection(smooth, W, H)
-      : { mask: this.largest(smooth, W, H), center: null };
+      : mode === 'hand'
+        ? { mask: smooth, center: null } // keep both hands; the landmark mask has no noise to prune
+        : { mask: this.largest(smooth, W, H), center: null };
     const clean = this.fillHoles(selectedComponent.mask, W, H);
     const quality = this.updateQuality(clean, W, H);
     const sizeConsistent = !this.objectTracked || quality.coverage >= this.trackedCoverage * 0.4;
