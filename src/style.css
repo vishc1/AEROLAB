@@ -2753,3 +2753,8 @@ body[data-view="large"] .benchmark { margin-top: 0; }
 .cam-pick-label { position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%); z-index: 3; padding: 6px 10px; border: 1px solid var(--lime); background: rgba(5, 14, 12, 0.85); color: var(--lime); font: 600 9.5px var(--mono); letter-spacing: 0.14em; text-transform: uppercase; white-space: nowrap; pointer-events: none; display: none; animation: pick-pulse 1.2s ease-in-out infinite; }
 .cam-view:has(canvas.is-picking) .cam-pick-label { display: block; }
 @keyframes pick-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+.cam-engine { margin: 0; font: 500 10px var(--mono); letter-spacing: 0.06em; color: var(--muted-2); }
+.cam-engine[data-state="loading"] { color: var(--cream); }
+.cam-engine[data-state="good"] { color: var(--mint); }
+.cam-engine[data-state="warn"] { color: var(--coral); }
+.cam-engine[data-state="bad"] { color: var(--coral); }

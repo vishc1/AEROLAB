@@ -269,6 +269,7 @@ export class CameraTracker {
       await this.video.play().catch(() => {});
       btn.textContent = 'Stop camera';
       this.$('cam-freeze').disabled = false;
+      this.$('cam-ai-outline').disabled = false;
       this.frozen = false;
       this.$('cam-state').textContent = 'SEARCHING';
       if (this.$('cam-detect').value === 'hand') {
@@ -299,6 +300,9 @@ export class CameraTracker {
   }
 
   stopCamera() {
+    clearTimeout(this.outlineTimer);
+    this.$('cam-ai-outline').disabled = true;
+    this.setEngine('waiting for camera', 'idle');
     this.cameraRequest += 1;
     if (this.stream) this.stream.getTracks().forEach((track) => track.stop());
     this.stream = null;
@@ -372,6 +376,7 @@ export class CameraTracker {
       this.syncDetectionMode();
     });
     $('cam-pick-object').addEventListener('click', () => this.enterPickMode());
+    $('cam-ai-outline').addEventListener('click', () => this.askOutline());
     $('cam-freeze').addEventListener('click', () => {
       if (!this.frozen && !this.usable) {
         this.setPrompt('Tune the colour until the outline says ready');
@@ -402,6 +407,7 @@ export class CameraTracker {
       const y = Math.max(0, Math.min(VH - 1, Math.floor(((event.clientY - rect.top) / rect.height) * VH)));
       this.sampleAt(x, y);
       if (this.$('cam-detect').value !== 'hand') {
+        if (this.frozen) this.setFrozen(false);
         this.segPoint = { x: x / VW, y: y / VH };
         this.segLocked = false;
         this.confidence = null;
@@ -409,6 +415,7 @@ export class CameraTracker {
         this.clearTrackedObjectQuietly();
         if (this.segmenter) this.setPrompt('Locking onto the object. Hold it still for a second');
         else this.initSegmenter();
+        this.scheduleOutlineFallback();
       }
     });
     this.syncDetectionMode();
@@ -447,6 +454,135 @@ export class CameraTracker {
     this.setStatus('warn', 'Click the object in the video');
   }
 
+  setEngine(text, state = 'info') {
+    const el = this.$('cam-engine');
+    if (!el) return;
+    el.textContent = `Cut-out engine: ${text}`;
+    el.dataset.state = state;
+  }
+
+  /** Copies a VW×VH binary mask into the tunnel grid, aspect preserved. */
+  capToGrid(cap, mw, mh, W, H) {
+    const { wc, off } = this.camGrid(W, H);
+    const raw = new Uint8Array(W * H);
+    for (let y = 0; y < H; y += 1) {
+      const my = Math.min(mh - 1, Math.floor((y / H) * mh));
+      for (let x = off; x < off + wc; x += 1) {
+        const mx = Math.min(mw - 1, Math.floor(((x - off) / wc) * mw));
+        if (cap[mx + my * mw]) raw[x + y * W] = 1;
+      }
+    }
+    return raw;
+  }
+
+  /** If the on-device cut-out has not locked a couple of seconds after a click, ask Claude. */
+  scheduleOutlineFallback() {
+    clearTimeout(this.outlineTimer);
+    this.outlineTimer = setTimeout(() => {
+      if (!this.stream || this.frozen || this.segLocked || this.$('cam-detect').value === 'hand') return;
+      this.askOutline();
+    }, 2600);
+  }
+
+  async askOutline() {
+    if (!this.stream || this.video.readyState < 2 || this.outlineBusy) return;
+    const point = this.segPoint || this.selectedPoint || { x: 0.5, y: 0.5 };
+    this.outlineBusy = true;
+    const btn = this.$('cam-ai-outline');
+    btn.disabled = true;
+    btn.textContent = 'Asking Claude…';
+    this.setEngine('asking Claude to trace the object', 'loading');
+    this.setPrompt('Hold still. Claude is tracing the object you clicked');
+    try {
+      // A sharper, mirrored frame with a red marker where the user clicked.
+      const fw = 480;
+      const fh = 320;
+      const c = document.createElement('canvas');
+      c.width = fw;
+      c.height = fh;
+      const ctx = c.getContext('2d');
+      ctx.drawImage(this.capture, 0, 0, fw, fh);
+      ctx.strokeStyle = '#ff2a2a';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(point.x * fw, point.y * fh, 9, 0, Math.PI * 2);
+      ctx.stroke();
+      const image = c.toDataURL('image/jpeg', 0.82);
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 25000);
+      const response = await fetch('/api/outline', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image, point }),
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      if (response.status === 503) throw new Error('offline');
+      if (!response.ok) throw new Error(`outline ${response.status}`);
+      const data = await response.json();
+      if (!data.found || !Array.isArray(data.points)) {
+        this.setEngine(`Claude could not find an object there${data.reason ? `: ${data.reason}` : ''}`, 'bad');
+        this.setPrompt('Click the middle of the object and try again');
+        return;
+      }
+      this.applyOutline(data.points, data.name);
+    } catch (error) {
+      if (error.message === 'offline') {
+        this.setEngine('Claude outline is not switched on for this site', 'bad');
+      } else {
+        console.warn(error);
+        this.setEngine('Claude outline failed, try again', 'bad');
+      }
+    } finally {
+      this.outlineBusy = false;
+      btn.textContent = 'Outline with Claude';
+      btn.disabled = !this.stream;
+    }
+  }
+
+  /** Paints a polygon (fractions of the frame) into the tunnel and freezes it. */
+  applyOutline(points, name = 'object') {
+    const W = this.mask.width;
+    const H = this.mask.height;
+    const c = document.createElement('canvas');
+    c.width = VW;
+    c.height = VH;
+    const ctx = c.getContext('2d', { willReadFrequently: true });
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    points.forEach(([x, y], i) => (i ? ctx.lineTo(x * VW, y * VH) : ctx.moveTo(x * VW, y * VH)));
+    ctx.closePath();
+    ctx.fill();
+    const px = ctx.getImageData(0, 0, VW, VH).data;
+    const cap = new Uint8Array(VW * VH);
+    for (let i = 0; i < cap.length; i += 1) cap[i] = px[i * 4 + 3] > 40 ? 1 : 0;
+    const raw = this.capToGrid(cap, VW, VH, W, H);
+    const clean = this.fillHoles(raw, W, H);
+    this.objectTracked = true;
+    this.mask.setFromBinary(this.fit(clean, W, H));
+    this.onMask?.();
+    this.usable = true;
+    this.validFrames = 3;
+    this.lastValidAt = performance.now();
+    // Show the traced outline in the preview pane.
+    const pw = (this.preview.width = VW);
+    const ph = (this.preview.height = VH);
+    const overlay = this.previewCtx.createImageData(pw, ph);
+    for (let i = 0; i < pw * ph; i += 1) {
+      if (!cap[i]) continue;
+      overlay.data[i * 4] = 200;
+      overlay.data[i * 4 + 1] = 255;
+      overlay.data[i * 4 + 2] = 90;
+      overlay.data[i * 4 + 3] = 170;
+    }
+    this.previewCtx.putImageData(overlay, 0, 0);
+    this.setFrozen(true);
+    this.$('cam-coverage').textContent = `${Math.round((cap.reduce((a, b) => a + b, 0) / cap.length) * 100)}%`;
+    this.setStatus('good', `Outlined by Claude · ${name}`);
+    this.setEngine(`Claude traced "${name}" and froze it in the tunnel`, 'good');
+    this.setPrompt('Shape frozen from Claude\'s outline. Run the test, or click the video to try again');
+  }
+
   /**
    * The camera frame is 3:2 but the tunnel grid is 2:1. Mapping the frame onto
    * the full grid stretches every shape sideways, so camera pixels live in a
@@ -478,6 +614,7 @@ export class CameraTracker {
   async initSegmenter() {
     if (this.segmenter) return this.segmenter;
     if (this.segLoading) return this.segLoading;
+    this.setEngine('loading the on-device model (MediaPipe)', 'loading');
     this.segLoading = (async () => {
       try {
         const { FilesetResolver, InteractiveSegmenterLegacy } = await import('@mediapipe/tasks-vision');
@@ -499,12 +636,14 @@ export class CameraTracker {
           options.baseOptions.delegate = 'CPU';
           this.segmenter = await InteractiveSegmenterLegacy.createFromOptions(vision, options);
         }
+        this.setEngine(`MediaPipe ready on ${options.baseOptions.delegate}, Claude on standby`, 'good');
         if (this.stream && this.$('cam-detect').value !== 'hand') {
           this.setPrompt(this.segPoint ? 'Locking onto the object. Hold it still for a second' : 'Click the object in the video');
         }
         return this.segmenter;
       } catch (error) {
         console.warn('Interactive segmenter unavailable, using colour keying', error);
+        this.setEngine('on-device model failed to load here, clicks will use Claude', 'warn');
         return null;
       } finally {
         this.segLoading = null;
@@ -548,22 +687,15 @@ export class CameraTracker {
     // neighbouring pixels of a similar colour so a phone becomes a whole phone.
     if (mw === VW && mh === VH) this.growByColour(cap, count, mw, mh);
 
-    const { wc, off } = this.camGrid(W, H);
-    const raw = new Uint8Array(W * H);
+    const raw = this.capToGrid(cap, mw, mh, W, H);
     let n = 0;
     let sx = 0;
     let sy = 0;
-    for (let y = 0; y < H; y += 1) {
-      const my = Math.min(mh - 1, Math.floor((y / H) * mh));
-      for (let x = off; x < off + wc; x += 1) {
-        const mx = Math.min(mw - 1, Math.floor(((x - off) / wc) * mw));
-        if (cap[mx + my * mw]) {
-          raw[x + y * W] = 1;
-          n += 1;
-          sx += mx;
-          sy += my;
-        }
-      }
+    for (let i = 0; i < total; i += 1) {
+      if (!cap[i]) continue;
+      n += 1;
+      sx += i % mw;
+      sy += (i / mw) | 0;
     }
     if (!n) return raw;
     // Follow the object: nudge the click point toward the mask centroid, but
@@ -926,7 +1058,11 @@ export class CameraTracker {
               ? 'Got it. Move the object up or down, then run the test or freeze the shape'
               : 'Object isolated — move it up or down, then freeze the shape',
         );
-        if (this.segLocked) this.setStatus('good', 'Object locked · cut out by MediaPipe');
+        if (this.segLocked) {
+          this.setStatus('good', 'Object locked · cut out by MediaPipe');
+          this.setEngine('MediaPipe locked the object', 'good');
+          clearTimeout(this.outlineTimer);
+        }
         replaced = true;
       }
     } else {

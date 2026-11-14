@@ -303,6 +303,7 @@
                         <button id="cam-pick-object" class="cam-pick-button" type="button">Pick object from video</button>
                         <button id="cam-center" class="shape-chip" type="button">Auto-pick center</button>
                         <button id="cam-freeze" class="shape-chip" type="button" disabled>Freeze shape</button>
+                        <button id="cam-ai-outline" class="shape-chip shape-chip-strong" type="button" disabled title="Send this frame to Claude and let it trace the object you clicked">Outline with Claude</button>
                       </div>
                       <div class="cam-row">
                         <label for="cam-detect">Detect</label>
@@ -322,6 +323,7 @@
                       </div>
                       <div id="cam-status" class="cam-status" data-state="idle"><i></i><span>Waiting for camera</span></div>
                       <div class="cam-coverage">Coverage <b id="cam-coverage">0%</b></div>
+                      <p id="cam-engine" class="cam-engine" data-state="idle">Cut-out engine: waiting for camera</p>
                       <p id="cam-ai-note" class="cam-ai-note" hidden>
                         Google MediaPipe runs locally in this tab. Camera frames are not uploaded.
                       </p>
