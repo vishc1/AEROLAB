@@ -602,18 +602,12 @@
         <section id="accuracy" class="panel">
           <div class="panel-head">
             <h2>How accurate is it</h2>
-            <p class="lede">Measured in the tunnel at the default wind speed on 14 Nov 2026, averaged over six seconds once the wake had settled. Reference values are textbook ranges for the same Reynolds number.</p>
+            <p class="lede">Measured in the 2D tunnel on 14 Nov 2026, averaged over five seconds once the wake had settled. Reproduce with <code>node scripts/validate.mjs</code>. Reference values are textbook ranges for the same Reynolds number.</p>
           </div>
           <div class="acc-wrap">
             <table class="acc">
               <thead><tr><th>Shape</th><th>Re</th><th>AEROLAB C<sub>d</sub></th><th>Reference</th><th>Result</th></tr></thead>
-              <tbody>
-                <tr><td>Cylinder</td><td>692</td><td>1.05</td><td>0.9 – 1.3</td><td class="ok">In range</td></tr>
-                <tr><td>Cylinder</td><td>180</td><td>0.60</td><td>1.2 – 1.5</td><td class="low">Reads 56% low</td></tr>
-                <tr><td>Cylinder</td><td>90</td><td>0.48</td><td>1.3 – 1.6</td><td class="low">Reads 67% low</td></tr>
-                <tr><td>Flat plate</td><td>692</td><td>1.29</td><td>1.8 – 2.1</td><td class="low">Reads 34% low</td></tr>
-                <tr><td>Airfoil, 4.5°</td><td>692</td><td>0.06</td><td>0.01 – 0.1</td><td class="ok">In range</td></tr>
-              </tbody>
+              <tbody id="accuracy-rows"></tbody>
             </table>
           </div>
           <p class="acc-note">Trust it for comparing shapes, not for absolute numbers. The low readings at low Reynolds number come from the coarse grid under-resolving the thick boundary layer, and the plate reads low because its wake is wider than the channel allows. Both move every shape the same way, so rankings hold.</p>
@@ -640,5 +634,6 @@
         <span>½ ρ v² C<sub>d</sub> A · Re = vL/ν · ∇·u = 0</span>
       </footer>
     </div>
+      <script type="module">import { initAccuracyTable } from "/src/validation.js"; initAccuracyTable();</script>
   </body>
 </html>
