@@ -22,6 +22,7 @@ import { createRace } from './race.js';
 import { initHints, initViewControls } from './hints.js';
 import { efficiency } from './leaderboard.js';
 import { roadImpact } from './impact.js';
+import { initValidation } from './validation.js';
 
 const store = createStore();
 
@@ -681,6 +682,7 @@ function init() {
   requestAnimationFrame(frame);
 }
 
+initValidation();
 try {
   init();
 } catch (error) {

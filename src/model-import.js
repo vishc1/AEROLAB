@@ -2,6 +2,59 @@ import '@google/model-viewer';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { GRID } from './sim3d.js';
+import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+
+// Formats converted in the browser. Each is loaded with its three.js loader,
+// then re-exported as a GLB so the preview and AR viewer can show it.
+const CONVERT_FORMATS = {
+  stl: { label: 'STL', zUp: true },
+  obj: { label: 'OBJ', zUp: false },
+  ply: { label: 'PLY', zUp: true },
+  fbx: { label: 'FBX', zUp: false },
+  dae: { label: 'COLLADA', zUp: false },
+  '3mf': { label: '3MF', zUp: true },
+};
+const MODEL_EXTENSIONS = ['glb', 'gltf', ...Object.keys(CONVERT_FORMATS)];
+
+async function loadConverted(extension, url) {
+  const material = () => new THREE.MeshStandardMaterial({ color: 0xb8c4d0, roughness: 0.6, metalness: 0.1, side: THREE.DoubleSide });
+  let object;
+  if (extension === 'stl' || extension === 'ply') {
+    const mod = extension === 'stl'
+      ? await import('three/addons/loaders/STLLoader.js')
+      : await import('three/addons/loaders/PLYLoader.js');
+    const geometry = await new (mod.STLLoader || mod.PLYLoader)().loadAsync(url);
+    geometry.computeVertexNormals();
+    object = new THREE.Group().add(new THREE.Mesh(geometry, material()));
+  } else if (extension === 'obj') {
+    const { OBJLoader } = await import('three/addons/loaders/OBJLoader.js');
+    object = await new OBJLoader().loadAsync(url);
+  } else if (extension === 'fbx') {
+    const { FBXLoader } = await import('three/addons/loaders/FBXLoader.js');
+    object = await new FBXLoader().loadAsync(url);
+  } else if (extension === 'dae') {
+    const { ColladaLoader } = await import('three/addons/loaders/ColladaLoader.js');
+    object = (await new ColladaLoader().loadAsync(url)).scene;
+  } else {
+    const { ThreeMFLoader } = await import('three/addons/loaders/3MFLoader.js');
+    object = await new ThreeMFLoader().loadAsync(url);
+  }
+  // OBJ/FBX meshes may have no material; give them a visible default.
+  object.traverse((node) => {
+    if (node.isMesh && !node.material) node.material = material();
+  });
+  const root = new THREE.Group();
+  root.add(object);
+  if (CONVERT_FORMATS[extension].zUp) root.rotation.x = -Math.PI / 2;
+  root.updateMatrixWorld(true);
+  return root;
+}
+
+function exportGlb(scene) {
+  return new Promise((resolve, reject) => {
+    new GLTFExporter().parse(scene, (buffer) => resolve(new Blob([buffer], { type: 'model/gltf-binary' })), reject, { binary: true });
+  });
+}
 
 const PREVIEW_SIZE = 512;
 const MAX_FILE_BYTES = 75 * 1024 * 1024;
@@ -129,21 +182,30 @@ export class ModelImporter {
 
   prepareForTest() {
     if (this.modelScene) return true;
-    this.setStatus('error', 'Upload a Blender .glb before running its wind test');
+    this.setStatus('error', 'Upload a 3D model (.glb, .stl, .obj and more) before running its wind test');
     return false;
   }
 
   async loadFile(file) {
-    const extension = file.name.split('.').pop()?.toLowerCase();
+    let extension = file.name.split('.').pop()?.toLowerCase();
     const imageFile = ['png', 'jpg', 'jpeg', 'webp', 'svg'].includes(extension) || file.type.startsWith('image/');
     if (extension === 'blend') {
-      this.setStatus('error', 'Export from Blender as glTF 2.0 (.glb), then drop that file here');
+      this.setStatus('loading', 'Converting .blend with Blender…');
+      try {
+        const response = await fetch('/api/blend', { method: 'POST', body: file });
+        if (!response.ok) throw new Error(String(response.status));
+        file = new File([await response.blob()], file.name.replace(/\.blend$/i, '.glb'), { type: 'model/gltf-binary' });
+        extension = 'glb';
+      } catch (error) {
+        this.setStatus('error', 'This site has no Blender to read .blend files. In Blender use File > Export > glTF 2.0 (.glb) or STL, then drop that file here');
+        return;
+      }
+    }
+    if (!imageFile && !MODEL_EXTENSIONS.includes(extension)) {
+      this.setStatus('error', 'Upload a 3D model (.glb, .gltf, .stl, .obj, .ply, .fbx, .dae, .3mf) or a PNG/JPG/WebP/SVG image');
       return;
     }
-    if (!imageFile && !['glb', 'gltf'].includes(extension)) {
-      this.setStatus('error', 'Upload a Blender .glb or a PNG/JPG/WebP/SVG image');
-      return;
-    }
+    const convert = CONVERT_FORMATS[extension];
     if (file.size > MAX_FILE_BYTES) {
       this.setStatus('error', 'Model is over 75 MB — reduce textures or geometry in Blender');
       return;
@@ -154,7 +216,7 @@ export class ModelImporter {
     this.setReady(false);
     this.setStatus('loading', 'Reading mesh and preparing its wind silhouette…');
     this.$('model-name').textContent = file.name;
-    this.$('model-meta').textContent = `${formatBytes(file.size)} · ${imageFile ? 'PALM IMAGE' : 'BLENDER GLTF'}`;
+    this.$('model-meta').textContent = `${formatBytes(file.size)} · ${imageFile ? 'PALM IMAGE' : convert ? `${convert.label} CONVERTED` : 'GLTF'}`;
 
     if (this.url) URL.revokeObjectURL(this.url);
     this.url = URL.createObjectURL(file);
@@ -167,7 +229,7 @@ export class ModelImporter {
       this.$('model-image-preview').src = this.url;
     } else {
       this.$('model-image-preview').removeAttribute('src');
-      this.viewer.src = this.url;
+      if (!convert) this.viewer.src = this.url;
     }
 
     try {
@@ -194,9 +256,18 @@ export class ModelImporter {
         this.imagePixels = this.readImagePixels(texture.image);
         stats = { triangles: 2, dimensions: `${width} × ${height} px` };
       } else {
-        const gltf = await this.loader.loadAsync(this.url);
-        stats = this.measure(gltf.scene);
-        this.modelScene = this.normaliseScene(gltf.scene);
+        let scene;
+        if (convert) {
+          scene = await loadConverted(extension, this.url);
+          const glb = await exportGlb(scene);
+          URL.revokeObjectURL(this.url);
+          this.url = URL.createObjectURL(glb);
+          this.viewer.src = this.url;
+        } else {
+          scene = (await this.loader.loadAsync(this.url)).scene;
+        }
+        stats = this.measure(scene);
+        this.modelScene = this.normaliseScene(scene);
         this.voxelCache = null;
       }
       this.createHandArScene();
@@ -219,7 +290,7 @@ export class ModelImporter {
         ? 'Could not read this image. Try PNG, JPG, WebP, or SVG.'
         : extension === 'gltf'
           ? 'This .gltf references separate files. Export one self-contained .glb from Blender.'
-          : 'Could not read this model. Re-export it as Blender glTF 2.0 (.glb).');
+          : 'Could not read this model. Re-export it as glTF 2.0 (.glb) or a binary STL.');
     }
   }
 
