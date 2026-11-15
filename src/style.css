@@ -2822,3 +2822,4 @@ body { background: radial-gradient(1200px 720px at 72% -8%, rgba(60, 170, 120, 0
 .workshop-head h2, .notes h2, .notes-head h2 { color: var(--mint); }
 .classroom .workshop-head h2 { color: var(--lime); }
 .notes-head h2 { color: var(--coral); }
+.modal-accuracy { margin: 0 0 16px; padding: 12px 14px; border: 1px solid rgba(233, 255, 85, 0.35); background: rgba(233, 255, 85, 0.06); font-size: 13.5px; color: var(--ink); }

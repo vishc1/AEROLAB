@@ -212,3 +212,11 @@ sub, sup { font-size: 0.68em; line-height: 0; }
   .site-footer { flex-direction: column; }
 }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+.acc-wrap { overflow-x: auto; }
+.acc { width: 100%; border-collapse: collapse; font-size: 14.5px; min-width: 560px; }
+.acc th { text-align: left; padding: 10px 12px 10px 0; font: 500 9px var(--mono); letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted-2); border-bottom: 1px solid var(--line); }
+.acc td { padding: 12px 12px 12px 0; border-bottom: 1px solid var(--line-soft); color: var(--ink); font-variant-numeric: tabular-nums; }
+.acc td.ok { color: var(--mint); }
+.acc td.low { color: var(--coral); }
+.acc-note { color: var(--muted); max-width: 70ch; font-size: 14px; }
